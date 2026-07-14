@@ -1,0 +1,9 @@
+<Project>
+    <!-- Single source of truth for the assembly version. Keep in lockstep with build.yaml's
+         `version:` (the plugin-manifest version the server + JPR read). -->
+    <PropertyGroup>
+        <Version>0.1.0.0</Version>
+        <AssemblyVersion>0.1.0.0</AssemblyVersion>
+        <FileVersion>0.1.0.0</FileVersion>
+    </PropertyGroup>
+</Project>
