@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.JellyRock</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.JellyRock</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -19,13 +19,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Pinned to the target server line (10.11.11). Compile-time only; the server supplies
-         the runtime assemblies (ExcludeAssets=runtime). Jellyfin.Controller tracks the SERVER
-         line, not a stable SDK — re-verify per server minor (watch the 12.0 RC). -->
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.11">
+    <!-- Compiled against the OLDEST supported server line (10.9.0) on purpose: this makes the
+         compiler ENFORCE the support floor — the plugin can only bind to API present in every server
+         we target, so we can't silently pick up a 10.10/10.11-only member. A single net8.0 assembly
+         then loads on 10.9/10.10 (net8) and 10.11 (net9 loads net8); the session API it uses is
+         byte-identical across that range (verified 10.9→10.11). 12.0 (net10, currently RC) keeps the
+         same session API and a net8 build should load there too — verify on-device before advertising
+         it. Compile-time only; the server supplies the patched runtime assemblies (ExcludeAssets=runtime),
+         so building against 10.9.0 does not ship an old assembly. Keep targetAbi in build.yaml in sync
+         with this floor. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.9.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="Jellyfin.Model" Version="10.11.11">
+    <PackageReference Include="Jellyfin.Model" Version="10.9.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
   </ItemGroup>

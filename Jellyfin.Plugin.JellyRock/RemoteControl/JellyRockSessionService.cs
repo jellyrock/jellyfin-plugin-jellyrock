@@ -61,9 +61,14 @@ public sealed class JellyRockSessionService : IHostedService
         {
             // Force SupportsMediaControl=true directly (NOT ReportCapabilities, which would re-raise
             // CapabilitiesChanged and loop). SessionInfo.SupportsRemoteControl reads this flag live.
-            if (session.Capabilities is not null && !session.Capabilities.SupportsMediaControl)
+            // Capture the reference once: a concurrent ReportCapabilities can swap session.Capabilities
+            // out between a null-check and the assignment (it is a settable property), so re-reading it
+            // would risk an NRE. If it *is* swapped after capture, the CapabilitiesChanged event re-runs
+            // this attach against the new object, so nothing is lost.
+            var capabilities = session.Capabilities;
+            if (capabilities is not null && !capabilities.SupportsMediaControl)
             {
-                session.Capabilities.SupportsMediaControl = true;
+                capabilities.SupportsMediaControl = true;
             }
 
             var ensured = session.EnsureController<QueueingSessionController>(_ => new QueueingSessionController());

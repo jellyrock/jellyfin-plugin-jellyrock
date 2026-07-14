@@ -2,8 +2,8 @@
 name: "JellyRock Companion"
 guid: "6c4f4b7e-50f7-43b8-a180-7de26f9033d6"
 version: "0.1.0.0"
-targetAbi: "10.11.11.0"
-framework: "net9.0"
+targetAbi: "10.9.0.0"
+framework: "net8.0"
 overview: "Server-side companion for the JellyRock Roku client."
 description: >
   Makes the JellyRock Roku app a remote-control ("Play On") target on HTTPS servers,

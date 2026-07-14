@@ -28,10 +28,13 @@ The plain-HTTP path needs no plugin: there JellyRock opens Jellyfin's native ses
 
 ## Requirements
 
-- Jellyfin server **10.11.11** (`Jellyfin.Controller` / `Jellyfin.Model` and `targetAbi` are pinned to
-  it). `Jellyfin.Controller` tracks the server line, not a stable SDK — re-pin for a different server
-  line and re-verify (watch the 12.0 RC line).
-- .NET 9 SDK to build.
+- Jellyfin server **10.9 – 10.11**. The plugin is a single `net8.0` assembly compiled against the
+  **10.9.0** API floor (`Jellyfin.Controller` / `Jellyfin.Model` and `targetAbi` are pinned there),
+  which the compiler uses to guarantee only API present in every supported server is used. A net8
+  assembly loads on 10.9/10.10 (net8) and 10.11 (net9), and the session API it relies on is identical
+  across that range. **12.0** (net10, currently RC) keeps the same session API and should load a net8
+  build, but is not yet verified on-device — treat it as unsupported until confirmed.
+- .NET 8 SDK to build.
 
 ## Build
 
@@ -40,7 +43,7 @@ No local .NET SDK needed — build in the official SDK container:
 ```bash
 docker run --rm -v "$PWD":/src -w /src --user "$(id -u):$(id -g)" \
   -e HOME=/tmp -e DOTNET_CLI_HOME=/tmp \
-  mcr.microsoft.com/dotnet/sdk:9.0 \
+  mcr.microsoft.com/dotnet/sdk:8.0 \
   dotnet publish Jellyfin.Plugin.JellyRock/Jellyfin.Plugin.JellyRock.csproj -c Release -o /src/publish
 # -> ./publish/Jellyfin.Plugin.JellyRock.dll
 ```
@@ -74,7 +77,7 @@ ssh "$HOST" bash -s <<'REMOTE'
   "description":"Server-side companion for the JellyRock Roku client.",
   "guid":"6c4f4b7e-50f7-43b8-a180-7de26f9033d6", "name":"JellyRock Companion",
   "overview":"Makes JellyRock a Play-On target on HTTPS.", "owner":"jellyrock",
-  "targetAbi":"10.11.11.0", "timestamp":"2026-07-13T00:00:00.0000000Z", "version":"0.1.0.0",
+  "targetAbi":"10.9.0.0", "timestamp":"2026-07-13T00:00:00.0000000Z", "version":"0.1.0.0",
   "status":"Active", "autoUpdate":false, "imagePath":"", "assemblies":[] }
 META
   docker cp /tmp/meta.json "$CT:$DIR/meta.json"

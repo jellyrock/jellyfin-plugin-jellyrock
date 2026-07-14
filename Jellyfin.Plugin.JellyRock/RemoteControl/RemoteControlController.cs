@@ -54,6 +54,7 @@ public class RemoteControlController : ControllerBase
     [HttpGet("info")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public ActionResult GetInfo()
     {
         return Ok(new
@@ -74,6 +75,9 @@ public class RemoteControlController : ControllerBase
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Poll([FromQuery] int waitMs = MaxWaitMs, CancellationToken cancellationToken = default)
     {
         var deviceId = User.FindFirst(DeviceIdClaim)?.Value;
