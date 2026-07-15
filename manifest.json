@@ -8,6 +8,14 @@
         "category": "General",
         "versions": [
             {
+                "version": "0.1.1.0",
+                "changelog": "Release automation: push a `release-x.y.z` branch to bump the version, package the plugin with [jprm](https://github.com/oddstr13/jellyfin-plugin-repository-manager), publish a GitHub release, and refresh the plugin-repo `manifest.json` so the Jellyfin Dashboard can install and auto-update the plugin. ([#3](https://github.com/jellyrock/jellyfin-plugin-jellyrock/issues/3)); Install: the primary path is now the Jellyfin Dashboard plugin repository; the manual `scp`/`docker cp` sideload is kept as a developer note.",
+                "targetAbi": "10.9.0.0",
+                "sourceUrl": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/releases/download/v0.1.1/jellyrock-companion_0.1.1.0.zip",
+                "checksum": "ddd03ede4ceb41bb112457e28e5397cc",
+                "timestamp": "2026-07-15T01:09:05Z"
+            },
+            {
                 "version": "0.1.0.0",
                 "changelog": "0.1.0 \u2014 HTTPS \"Cast to JellyRock\" long-poll remote-control channel (issue #667).\n",
                 "targetAbi": "10.9.0.0",
