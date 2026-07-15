@@ -10,6 +10,8 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-15
+
 ### Added
 
 - Release automation: push a `release-x.y.z` branch to bump the version, package
