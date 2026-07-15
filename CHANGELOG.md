@@ -10,6 +10,8 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-15
+
 ### Changed
 
 - Plugin catalog listing: clearer user-facing description, set the maintainer to
