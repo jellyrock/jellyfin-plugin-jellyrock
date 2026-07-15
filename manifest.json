@@ -1,0 +1,20 @@
+[
+    {
+        "guid": "6c4f4b7e-50f7-43b8-a180-7de26f9033d6",
+        "name": "JellyRock Companion",
+        "description": "Makes the JellyRock Roku app a remote-control (\"Play On\") target on HTTPS servers, where Roku's lack of socket TLS rules out Jellyfin's native session WebSocket. The plugin exposes an authenticated HTTP long-poll command channel JellyRock consumes over TLS. Named for the companion role so future server-assisted JellyRock features can live in the same plugin.\n",
+        "overview": "Server-side companion for the JellyRock Roku client.",
+        "owner": "jellyrock",
+        "category": "General",
+        "versions": [
+            {
+                "version": "0.1.0.0",
+                "changelog": "0.1.0 \u2014 HTTPS \"Cast to JellyRock\" long-poll remote-control channel (issue #667).\n",
+                "targetAbi": "10.9.0.0",
+                "sourceUrl": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/releases/download/v0.1.0/jellyrock-companion_0.1.0.0.zip",
+                "checksum": "149630273c67d40d18f8067c4939203f",
+                "timestamp": "2026-07-15T00:58:36Z"
+            }
+        ]
+    }
+]
