@@ -1,3 +1,4 @@
+<!-- markdownlint-disable -->
 # Changelog
 
 All notable changes to this project are documented in this file.
@@ -8,6 +9,21 @@ On-disk versions are 4-part C# assembly versions (`x.y.z.0`); the headings and
 git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
+
+### Added
+
+- Release automation: push a `release-x.y.z` branch to bump the version, package
+  the plugin with [jprm](https://github.com/oddstr13/jellyfin-plugin-repository-manager),
+  publish a GitHub release, and refresh the plugin-repo `manifest.json` so the
+  Jellyfin Dashboard can install and auto-update the plugin.
+  ([#3](https://github.com/jellyrock/jellyfin-plugin-jellyrock/issues/3))
+
+### Changed
+
+- Install: the primary path is now the Jellyfin Dashboard plugin repository; the
+  manual `scp`/`docker cp` sideload is kept as a developer note.
+
+## [0.1.0] - 2026-07-14
 
 ### Added
 
