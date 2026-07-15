@@ -2,11 +2,20 @@
     {
         "guid": "6c4f4b7e-50f7-43b8-a180-7de26f9033d6",
         "name": "JellyRock Companion",
-        "description": "Makes the JellyRock Roku app a remote-control (\"Play On\") target on HTTPS servers, where Roku's lack of socket TLS rules out Jellyfin's native session WebSocket. The plugin exposes an authenticated HTTP long-poll command channel JellyRock consumes over TLS. Named for the companion role so future server-assisted JellyRock features can live in the same plugin.\n",
-        "overview": "Server-side companion for the JellyRock Roku client.",
-        "owner": "jellyrock",
+        "description": "The server-side companion for the JellyRock Roku app, and the home for its server-assisted features as they grow. Today it makes JellyRock a \"Play On\" cast and remote-control target on HTTPS Jellyfin servers: cast from the Jellyfin web or mobile app to your Roku, then play, pause, and seek from your phone. Because Roku cannot open a secure socket (wss://), JellyRock relies on this plugin to receive those commands over TLS, making it the only Roku client for Jellyfin with Play On and remote-control support. Requires JellyRock v2.23.0 or newer.\n",
+        "overview": "Server-side companion for the JellyRock Roku app (Play On casting and remote control).",
+        "owner": "Charles Ewert",
         "category": "General",
+        "imageUrl": "https://jellyrock.github.io/jellyfin-plugin-jellyrock/jellyrock.png",
         "versions": [
+            {
+                "version": "0.1.2.0",
+                "changelog": "Plugin catalog listing: clearer user-facing description, set the maintainer to Charles Ewert, and added the JellyRock icon. Documented that the plugin requires JellyRock v2.23.0 or newer (the release that added HTTPS remote-control support).",
+                "targetAbi": "10.9.0.0",
+                "sourceUrl": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/releases/download/v0.1.2/jellyrock-companion_0.1.2.0.zip",
+                "checksum": "3b6b2908bb7b4614d59618b9d29627bc",
+                "timestamp": "2026-07-15T04:15:53Z"
+            },
             {
                 "version": "0.1.1.0",
                 "changelog": "Release automation: push a `release-x.y.z` branch to bump the version, package the plugin with [jprm](https://github.com/oddstr13/jellyfin-plugin-repository-manager), publish a GitHub release, and refresh the plugin-repo `manifest.json` so the Jellyfin Dashboard can install and auto-update the plugin. ([#3](https://github.com/jellyrock/jellyfin-plugin-jellyrock/issues/3)); Install: the primary path is now the Jellyfin Dashboard plugin repository; the manual `scp`/`docker cp` sideload is kept as a developer note.",
