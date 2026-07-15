@@ -145,11 +145,17 @@ Jellyfin.Plugin.JellyRock.Tests/      # xUnit tests (queue / liveness / enum-ser
 
 ## Releasing
 
-Cutting a release is two steps (see [issue #3](https://github.com/jellyrock/jellyfin-plugin-jellyrock/issues/3)):
+Cutting a release is two steps (same flow as the JellyRock app — see
+[issue #3](https://github.com/jellyrock/jellyfin-plugin-jellyrock/issues/3)):
 
-1. Run the **Release — prepare PR** workflow (Actions tab) with the new `x.y.z`. It bumps
+1. **Push a `release-x.y.z` branch.** The **Release Preparation** workflow bumps
    `Directory.Build.props` + `build.yaml` in lockstep, rolls `CHANGELOG.md`'s `[Unreleased]` into a
-   dated section, and opens a `release-x.y.z` PR.
+   dated section on that branch, and opens a PR to `main`.
+
+   ```bash
+   git switch main && git pull
+   git switch -c release-0.2.0 && git push -u origin release-0.2.0
+   ```
 2. Review and **merge** that PR. `release.yml` then tags `vx.y.z`, packages the plugin with
    [jprm](https://github.com/oddstr13/jellyfin-plugin-repository-manager), publishes a GitHub release
    (zip + `md5`, notes from `CHANGELOG.md`), and refreshes the `manifest.json` served from GitHub Pages

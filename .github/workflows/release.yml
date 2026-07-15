@@ -63,7 +63,7 @@ jobs:
             # touch build.yaml (and the initial infra merge) inert — a version ships
             # deliberately, via a prepared PR, never as a side effect.
             echo "release=false" >> "$GITHUB_OUTPUT"
-            echo "ℹ️ No dated CHANGELOG section for $VERSION — run 'Release — prepare PR' first."
+            echo "ℹ️ No dated CHANGELOG section for $VERSION — push a release-$VERSION branch first (Release Preparation)."
           else
             # Refuse to publish a version that isn't strictly newer than the latest
             # release — a downgrade/duplicate here means a bad bump, fail loudly.
