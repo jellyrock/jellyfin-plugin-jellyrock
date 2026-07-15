@@ -51,12 +51,31 @@ docker run --rm -v "$PWD":/src -w /src --user "$(id -u):$(id -g)" \
 The publish folder contains only the plugin DLL — the `Jellyfin.*` assemblies and the ASP.NET Core
 shared framework are supplied by the server at runtime (`ExcludeAssets=runtime` / `FrameworkReference`).
 
-## Install (manual sideload)
+## Install
 
-Jellyfin discovers plugins by a **`meta.json`** manifest in each plugin folder; the DLL + `meta.json`
-must be owned by the Jellyfin runtime user (Jellyfin rewrites `meta.json` on load). Plugin dir =
-`<jellyfin-data-dir>/plugins/` (`/config/data/plugins/` on the LinuxServer.io image). Confirm the exact
-path from the running container rather than guessing:
+Install and auto-update straight from the Jellyfin Dashboard — no SSH or file copying.
+
+1. **Dashboard → Plugins → Repositories → +**
+2. Add the JellyRock plugin repository (any name), with this URL:
+
+   ```text
+   https://jellyrock.github.io/jellyfin-plugin-jellyrock/manifest.json
+   ```
+3. **Dashboard → Plugins → Catalog → General → JellyRock Companion → Install**, then restart Jellyfin
+   when prompted.
+
+Future versions surface as updates in the Dashboard automatically. Each release's zip + `md5` are also
+attached to the corresponding [GitHub release](https://github.com/jellyrock/jellyfin-plugin-jellyrock/releases)
+if you prefer to grab them directly.
+
+<details>
+<summary>Manual sideload (development only)</summary>
+
+For iterating on an unreleased build, drop the DLL into the plugin folder by hand. Jellyfin discovers
+plugins by a **`meta.json`** in each plugin folder; the DLL + `meta.json` must be owned by the Jellyfin
+runtime user (Jellyfin rewrites `meta.json` on load). Plugin dir = `<jellyfin-data-dir>/plugins/`
+(`/config/data/plugins/` on the LinuxServer.io image). Confirm the exact path from the running container
+rather than guessing:
 
 ```bash
 docker exec <jellyfin-container> sh -c 'find /config -maxdepth 3 -type d -name plugins'
@@ -93,6 +112,7 @@ ssh "$HOST" 'docker logs '"$CT"' 2>&1 | grep -iE "Loaded plugin: JellyRock|Jelly
 ```
 
 **Dashboard → Plugins** lists **"JellyRock Companion"**.
+</details>
 
 ## Configuration
 
@@ -103,11 +123,14 @@ nothing to tune or misconfigure.
 ## Layout
 
 ```
-build.yaml                            # plugin manifest (guid, targetAbi, artifact)
-Directory.Build.props                 # single source of the assembly version
+CHANGELOG.md                          # Keep a Changelog; release notes come from here
+Directory.Build.props                 # assembly <Version> (kept in lockstep with build.yaml)
 jellyfin.ruleset / .editorconfig      # analyzer + style config (StyleCop, etc.)
 Jellyfin.Plugin.JellyRock.sln
+scripts/                              # release helpers (set-version, changelog-extract, parity)
+.github/workflows/                    # ci.yml, release-prepare.yml, release.yml
 Jellyfin.Plugin.JellyRock/
+  build.yaml                          # plugin manifest (guid, targetAbi, artifact, version) — jprm reads this
   Jellyfin.Plugin.JellyRock.csproj
   Plugin.cs                           # BasePlugin<PluginConfiguration> (no config page)
   PluginServiceRegistrator.cs         # registers the session service into DI
@@ -119,3 +142,17 @@ Jellyfin.Plugin.JellyRock/
     CommandEnvelope.cs                # the { MessageType, Data, MessageId } wire shape
 Jellyfin.Plugin.JellyRock.Tests/      # xUnit tests (queue / liveness / enum-serialization / concurrency)
 ```
+
+## Releasing
+
+Cutting a release is two steps (see [issue #3](https://github.com/jellyrock/jellyfin-plugin-jellyrock/issues/3)):
+
+1. Run the **Release — prepare PR** workflow (Actions tab) with the new `x.y.z`. It bumps
+   `Directory.Build.props` + `build.yaml` in lockstep, rolls `CHANGELOG.md`'s `[Unreleased]` into a
+   dated section, and opens a `release-x.y.z` PR.
+2. Review and **merge** that PR. `release.yml` then tags `vx.y.z`, packages the plugin with
+   [jprm](https://github.com/oddstr13/jellyfin-plugin-repository-manager), publishes a GitHub release
+   (zip + `md5`, notes from `CHANGELOG.md`), and refreshes the `manifest.json` served from GitHub Pages
+   so existing installs auto-update.
+
+Everyday work adds entries under `## [Unreleased]` in `CHANGELOG.md`; the release rolls them up.

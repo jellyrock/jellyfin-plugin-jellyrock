@@ -1,0 +1,107 @@
+name: Release — prepare PR
+
+# Manual first step of a release (mirrors the JellyRock app's branch -> bump -> PR flow).
+# You enter the new version; this bumps both version files in lockstep, rolls the
+# CHANGELOG [Unreleased] section into a dated entry, and opens a `release-x.y.z` PR.
+# Merging that PR is what actually ships the release (see release.yml).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version, 3-part semver (e.g. 0.2.0)"
+        required: true
+        type: string
+
+# Branch push + PR are done with the jellyrock[bot] App token so the release PR
+# triggers CI (a GITHUB_TOKEN-created PR would not). Default token stays read-only.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-prepare-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Validate version
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must be 3-part semver x.y.z (got '$VERSION')"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists — pick a higher version."
+            exit 1
+          fi
+          LATEST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1 | sed 's/^v//')
+          if [[ -n "$LATEST" ]] && ! ./scripts/version-gt.sh "$VERSION" "$LATEST"; then
+            echo "::error::Version $VERSION must be greater than the latest release $LATEST."
+            exit 1
+          fi
+          echo "branch=release-$VERSION" >> "$GITHUB_ENV"
+
+      - name: Configure git identity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          APP_USER_ID=$(gh api "/users/jellyrock[bot]" --jq .id)
+          git config user.name "jellyrock[bot]"
+          git config user.email "${APP_USER_ID}+jellyrock[bot]@users.noreply.github.com"
+
+      - name: Bump version + roll changelog
+        run: ./scripts/set-version.sh "${{ inputs.version }}"
+
+      - name: Verify version parity
+        run: ./scripts/check-version-parity.sh
+
+      - name: Commit + push release branch
+        run: |
+          git checkout -b "$branch"
+          git add Directory.Build.props Jellyfin.Plugin.JellyRock/build.yaml CHANGELOG.md
+          git commit -m "chore: prepare release v${{ inputs.version }}"
+          git push --force-with-lease origin "$branch"
+
+      - name: Open release PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          VERSION="${{ inputs.version }}"
+          NOTES="$(./scripts/changelog-extract.sh "$VERSION")"
+          BODY="$(cat <<EOF
+          ## 🚀 Prepare release v$VERSION
+
+          This PR bumps \`Directory.Build.props\` and \`build.yaml\` to \`$VERSION.0\` and
+          rolls the CHANGELOG. **Merging it to \`main\` triggers the release** — tag
+          \`v$VERSION\`, jprm package, GitHub release, and manifest refresh (see
+          \`.github/workflows/release.yml\`).
+
+          ### Release notes (from CHANGELOG.md)
+
+          $NOTES
+
+          ---
+          _CI runs on this PR (App-authored). The diff is only the version bump + changelog roll._
+          EOF
+          )"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "Prepare release v$VERSION" \
+            --body "$BODY"
