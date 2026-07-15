@@ -10,6 +10,19 @@ on:
   workflow_dispatch:
 
 jobs:
+  version-parity:
+    name: Version parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Backstop for review finding #6: the assembly version (Directory.Build.props)
+      # and the manifest version (build.yaml) must agree. scripts/set-version.sh
+      # writes both together; this fails the build if they ever drift.
+      - name: Check version parity
+        run: ./scripts/check-version-parity.sh
+
   build-test:
     name: Build + test
     runs-on: ubuntu-latest

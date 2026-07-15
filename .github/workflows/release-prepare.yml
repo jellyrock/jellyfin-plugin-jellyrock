@@ -1,0 +1,115 @@
+name: Release Preparation
+
+# Mirrors the JellyRock app's flow: push a `release-x.y.z` branch and this bumps
+# the version files (Directory.Build.props + build.yaml, in lockstep) and rolls
+# CHANGELOG.md's [Unreleased] into a dated section ON that branch, then opens the
+# PR to main. Merging that PR is what ships the release (see release.yml).
+#
+#   git switch main && git pull
+#   git switch -c release-0.2.0 && git push -u origin release-0.2.0
+on:
+  push:
+    branches:
+      - "release-*.*.*"   # e.g. release-0.2.0
+
+# Branch push + PR run as the jellyrock[bot] App token so the release PR triggers
+# CI (a GITHUB_TOKEN-authored PR would not). Default token stays read-only.
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize runs on the same branch so our own bump push (which re-triggers this
+  # workflow) queues behind the first run instead of racing the PR creation.
+  group: release-prepare-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Derive + validate version
+        run: |
+          BRANCH=${GITHUB_REF#refs/heads/}
+          VERSION=${BRANCH#release-}
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Branch '$BRANCH' must be release-x.y.z (got version '$VERSION')"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists — pick a higher version."
+            exit 1
+          fi
+          LATEST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1 | sed 's/^v//')
+          if [[ -n "$LATEST" ]] && ! ./scripts/version-gt.sh "$VERSION" "$LATEST"; then
+            echo "::error::Version $VERSION must be greater than the latest release $LATEST."
+            exit 1
+          fi
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Configure git identity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          APP_USER_ID=$(gh api "/users/jellyrock[bot]" --jq .id)
+          git config user.name "jellyrock[bot]"
+          git config user.email "${APP_USER_ID}+jellyrock[bot]@users.noreply.github.com"
+
+      - name: Bump version + roll changelog
+        run: |
+          # Idempotent: if the branch is already prepared (a dated CHANGELOG section
+          # exists — e.g. this run was triggered by our own bump push), do nothing.
+          if grep -qE "^## \[$VERSION\] - " CHANGELOG.md; then
+            echo "✅ $VERSION already prepared on $BRANCH — nothing to bump."
+            exit 0
+          fi
+          ./scripts/set-version.sh "$VERSION"
+          ./scripts/check-version-parity.sh
+          git add Directory.Build.props Jellyfin.Plugin.JellyRock/build.yaml CHANGELOG.md
+          git commit -m "chore: prepare release v$VERSION"
+          git push origin "HEAD:$BRANCH"
+
+      - name: Open release PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          if [[ -n "$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[].number')" ]]; then
+            echo "ℹ️ PR already open for $BRANCH."
+            exit 0
+          fi
+          NOTES="$(./scripts/changelog-extract.sh "$VERSION")"
+          BODY="$(cat <<EOF
+          ## 🚀 Prepare release v$VERSION
+
+          Bumps \`Directory.Build.props\` + \`build.yaml\` to \`$VERSION.0\` and rolls the
+          CHANGELOG. **Merging to \`main\` triggers the release** — tag \`v$VERSION\`, jprm
+          package, GitHub release, and manifest refresh (see \`.github/workflows/release.yml\`).
+
+          ### Release notes (from CHANGELOG.md)
+
+          $NOTES
+
+          ---
+          _CI runs on this PR (App-authored). The diff is only the version bump + changelog roll._
+          EOF
+          )"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Prepare release v$VERSION" \
+            --body "$BODY"

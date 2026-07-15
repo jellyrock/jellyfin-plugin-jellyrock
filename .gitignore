@@ -2,3 +2,7 @@ bin/
 obj/
 publish/
 *.user
+
+# Release build outputs (jprm packages, gh-pages worktree)
+dist/
+pages/

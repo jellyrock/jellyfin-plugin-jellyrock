@@ -1,0 +1,245 @@
+name: Release
+
+# Fires when a version bump lands on main (i.e. a release-prepare PR is merged),
+# or manually. Idempotent: it releases the version currently declared in
+# build.yaml only if that tag doesn't exist yet, so ordinary merges are no-ops
+# and re-runs are safe. Packaging happens BEFORE the tag/release are created, so
+# a build failure never leaves a dangling tag.
+on:
+  push:
+    branches: [main]
+    paths:
+      - Directory.Build.props
+      - Jellyfin.Plugin.JellyRock/build.yaml
+      - CHANGELOG.md
+  workflow_dispatch:
+
+# The privileged writes (tag, release, gh-pages, Pages) are done with the
+# jellyrock[bot] GitHub App token, not GITHUB_TOKEN — so the default token stays
+# read-only and there's no need to flip repo workflow-permissions. Using the App
+# also lets the release commit/tag trigger downstream workflows.
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Should release?
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.decide.outputs.release }}
+      version: ${{ steps.decide.outputs.version }}
+      tag: ${{ steps.decide.outputs.tag }}
+      fourver: ${{ steps.decide.outputs.fourver }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Decide
+        id: decide
+        run: |
+          FOURVER=$(grep -oP '^version:\s*"?\K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' \
+            Jellyfin.Plugin.JellyRock/build.yaml | head -n1)
+          if [[ -z "$FOURVER" ]]; then
+            echo "::error::Could not read version from build.yaml"; exit 1
+          fi
+          VERSION=$(echo "$FOURVER" | cut -d. -f1-3)
+          TAG="v$VERSION"
+          echo "fourver=$FOURVER" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ $TAG already exists — nothing to release."
+          elif ! grep -qE "^## \[$VERSION\] - " CHANGELOG.md; then
+            # A version is releasable only once its CHANGELOG section is DATED, which
+            # only the release-prepare workflow does. This makes ordinary merges that
+            # touch build.yaml (and the initial infra merge) inert — a version ships
+            # deliberately, via a prepared PR, never as a side effect.
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No dated CHANGELOG section for $VERSION — push a release-$VERSION branch first (Release Preparation)."
+          else
+            # Refuse to publish a version that isn't strictly newer than the latest
+            # release — a downgrade/duplicate here means a bad bump, fail loudly.
+            LATEST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1 | sed 's/^v//')
+            if [[ -n "$LATEST" ]] && ! ./scripts/version-gt.sh "$VERSION" "$LATEST"; then
+              echo "::error::build.yaml version $VERSION is not greater than the latest release $LATEST — refusing to publish."
+              exit 1
+            fi
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "🚀 Will release $TAG (assembly $FOURVER), previous latest: ${LATEST:-none}."
+          fi
+
+  release:
+    name: Package + publish
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.check.outputs.tag }}
+      VERSION: ${{ needs.check.outputs.version }}
+      FOURVER: ${{ needs.check.outputs.fourver }}
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Configure git identity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          APP_USER_ID=$(gh api "/users/jellyrock[bot]" --jq .id)
+          git config user.name "jellyrock[bot]"
+          git config user.email "${APP_USER_ID}+jellyrock[bot]@users.noreply.github.com"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install jprm
+        run: |
+          python3 -m pip install --user --upgrade jprm
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Compute URLs
+        id: urls
+        run: |
+          OWNER_LC=$(echo "${GITHUB_REPOSITORY%/*}" | tr '[:upper:]' '[:lower:]')
+          REPO="${GITHUB_REPOSITORY#*/}"
+          echo "manifest_url=https://${OWNER_LC}.github.io/${REPO}/manifest.json" >> "$GITHUB_OUTPUT"
+          echo "repo_url=https://github.com/${GITHUB_REPOSITORY}" >> "$GITHUB_OUTPUT"
+
+      # Keep the manifest's per-version changelog in sync with CHANGELOG.md (the
+      # single source of release-note truth). jprm embeds build.yaml's changelog
+      # into the package meta, which `repo add` then copies into manifest.json.
+      - name: Sync build.yaml changelog from CHANGELOG.md
+        run: |
+          CL="$(./scripts/changelog-extract.sh "$VERSION" --oneline)"
+          CL="$CL" yq -i '.changelog = strenv(CL)' Jellyfin.Plugin.JellyRock/build.yaml
+
+      - name: Restore
+        run: dotnet restore Jellyfin.Plugin.JellyRock/Jellyfin.Plugin.JellyRock.csproj
+
+      # jprm reads version/framework/artifacts from build.yaml and runs the dotnet
+      # publish itself (--no-restore, hence the restore above). Pointed at the
+      # plugin dir so it builds ONLY the plugin project (no .sln, no Tests).
+      - name: Package with jprm
+        id: pkg
+        run: |
+          mkdir -p dist
+          jprm --verbosity=info plugin build Jellyfin.Plugin.JellyRock --output dist
+          ZIP=$(find dist -name '*.zip' | head -n1)
+          if [[ -z "$ZIP" ]]; then echo "::error::jprm produced no zip"; ls -la dist; exit 1; fi
+          ZIPNAME=$(basename "$ZIP")
+          # jprm writes a .md5sum next to the zip; generate one if it didn't.
+          MD5=$(find dist -name '*.md5sum' | head -n1)
+          if [[ -z "$MD5" ]]; then ( cd dist && md5sum "$ZIPNAME" > "$ZIPNAME.md5sum" ); MD5="dist/$ZIPNAME.md5sum"; fi
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "zipname=$ZIPNAME" >> "$GITHUB_OUTPUT"
+          echo "md5=$MD5" >> "$GITHUB_OUTPUT"
+          echo "asset_url=${{ steps.urls.outputs.repo_url }}/releases/download/${TAG}/${ZIPNAME}" >> "$GITHUB_OUTPUT"
+          echo "📦 $ZIPNAME"
+
+      - name: Build release notes
+        run: |
+          {
+            echo "## Install / update via the Jellyfin Dashboard"
+            echo
+            echo "**Dashboard → Plugins → Repositories → +**, add this URL, then install **JellyRock Companion** from the catalog (auto-updates from here on):"
+            echo
+            echo '```'
+            echo "${{ steps.urls.outputs.manifest_url }}"
+            echo '```'
+            echo
+            echo "## Changes"
+            echo
+            ./scripts/changelog-extract.sh "$VERSION"
+          } > notes.md
+
+      - name: Create tag
+        run: |
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file notes.md \
+            "${{ steps.pkg.outputs.zip }}" \
+            "${{ steps.pkg.outputs.md5 }}"
+
+      # Publish/refresh manifest.json on the gh-pages branch (manifest only — the
+      # zip lives as a release asset; sourceUrl points there via jprm's -U). Plain
+      # git, no third-party actions. The manifest accumulates every version.
+      - name: Publish manifest to gh-pages
+        run: |
+          git fetch origin gh-pages || true
+          if git rev-parse --verify -q origin/gh-pages >/dev/null; then
+            git worktree add pages origin/gh-pages
+            git -C pages checkout -B gh-pages
+          else
+            git worktree add --detach pages
+            git -C pages checkout --orphan gh-pages
+            git -C pages rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          [[ -f pages/manifest.json ]] || jprm repo init pages
+          jprm repo add pages "${{ steps.pkg.outputs.zip }}" -U "${{ steps.pkg.outputs.asset_url }}"
+
+          # Keep gh-pages lean: manifest only, no copied binaries.
+          find pages \( -name '*.zip' -o -name '*.md5sum' \) -delete
+
+          if [[ ! -f pages/index.html ]]; then
+            cat > pages/index.html <<HTML
+          <!doctype html><meta charset="utf-8">
+          <title>JellyRock Companion — Jellyfin plugin repository</title>
+          <h1>JellyRock Companion</h1>
+          <p>Jellyfin plugin repository. Add this URL in <b>Dashboard → Plugins → Repositories</b>:</p>
+          <pre>${{ steps.urls.outputs.manifest_url }}</pre>
+          <p><a href="manifest.json">manifest.json</a> · <a href="${{ steps.urls.outputs.repo_url }}">source</a></p>
+          HTML
+          fi
+
+          git -C pages add -A
+          git -C pages commit -m "chore: publish manifest for $TAG" || echo "no manifest changes"
+          git -C pages push origin gh-pages
+
+      - name: Enable GitHub Pages (best effort)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/pages" \
+            -f build_type=legacy -f 'source[branch]=gh-pages' -f 'source[path]=/' 2>/dev/null \
+          || gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" \
+            -f 'source[branch]=gh-pages' -f 'source[path]=/' 2>/dev/null \
+          || echo "::notice::If the manifest 404s, enable Pages: Settings → Pages → Deploy from a branch → gh-pages / (root)."
+
+      - name: Summary
+        run: |
+          {
+            echo "### ✅ Released $TAG"
+            echo
+            echo "- Assembly version: \`$FOURVER\`"
+            echo "- Package: \`${{ steps.pkg.outputs.zipname }}\` (+ .md5sum) attached to the release"
+            echo "- Manifest: [${{ steps.urls.outputs.manifest_url }}](${{ steps.urls.outputs.manifest_url }})"
+          } >> "$GITHUB_STEP_SUMMARY"
