@@ -10,6 +10,14 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-15
+
+### Changed
+
+- Plugin catalog listing: clearer user-facing description, set the maintainer to
+  Charles Ewert, and added the JellyRock icon. Documented that the plugin requires
+  JellyRock v2.23.0 or newer (the release that added HTTPS remote-control support).
+
 ## [0.1.1] - 2026-07-15
 
 ### Added
@@ -35,5 +43,5 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
   authenticated `GET /JellyRock/RemoteControl/poll` long-poll the Roku client
   consumes over TLS (no `wss://` required). Closed-app hygiene drops the cast
   target once polling stops. ([#667](https://github.com/jellyrock/jellyrock/issues/667))
-- Server support for Jellyfin **10.9 – 10.11**: a single `net8.0` assembly
+- Server support for Jellyfin **10.9-10.11**: a single `net8.0` assembly
   compiled against the 10.9.0 API floor, with `targetAbi` pinned to `10.9.0.0`.
