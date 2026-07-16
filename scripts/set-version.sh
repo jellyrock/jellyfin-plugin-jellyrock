@@ -39,28 +39,36 @@ sed -i -E \
 sed -i -E "s#^version:.*#version: \"${four}\"#" "$yaml"
 
 # --- CHANGELOG.md ------------------------------------------------------------
-# Guard: refuse to cut a release with an empty [Unreleased] (unless FORCE=1).
-unreleased_body="$(awk '
-  /^## \[Unreleased\]/ { grab=1; next }
-  grab && /^## / { exit }
-  grab { print }
-' "$changelog" | sed -E 's/^###? .*//; s/^\s+//; s/\s+$//' | awk 'NF')"
+# Generate the release section from PR/commit titles since the previous tag
+# (scripts/changelog-gen.sh) rather than a hand-written [Unreleased] — entries then
+# mirror the JellyRock app's changelog. This runs on the release branch BEFORE the
+# "chore: prepare release" commit exists, so only merged feature PRs are in range.
+# [Unreleased] stays as an empty placeholder for the next cycle.
+section="$("${BASH_SOURCE%/*}/changelog-gen.sh")"
 
-if [[ -z "$unreleased_body" && "${FORCE:-}" != "1" ]]; then
-  echo "::error::CHANGELOG.md [Unreleased] is empty — nothing to release." >&2
-  echo "Add entries under ## [Unreleased], or set FORCE=1 to override." >&2
+if [[ -z "$section" && "${FORCE:-}" != "1" ]]; then
+  echo "::error::No user-facing commits since the last release — nothing to changelog." >&2
+  echo "Merge at least one feat/fix/perf/refactor PR, or set FORCE=1 to override." >&2
   exit 1
 fi
 
-# Insert a dated [x.y.z] heading immediately under [Unreleased]; the existing
-# unreleased content thereby moves under the new version heading.
+# Insert '## [x.y.z] - DATE' + the generated section directly under '## [Unreleased]',
+# dropping any stale [Unreleased] body (it is auto-generated now, never hand-written).
 tmp="$(mktemp)"
-awk -v ver="$ver" -v date="$date" '
+CL_VER="$ver" CL_DATE="$date" CL_SECTION="$section" awk '
+  skip && /^## \[/ { skip=0; print "" }   # previous release heading — resume, one blank before it
+  skip { next }                           # drop the old [Unreleased] body in between
   !done && /^## \[Unreleased\]/ {
     print "## [Unreleased]"
     print ""
-    print "## [" ver "] - " date
+    print "## [" ENVIRON["CL_VER"] "] - " ENVIRON["CL_DATE"]
+    if (ENVIRON["CL_SECTION"] != "") {
+      print ""
+      printf "%s", ENVIRON["CL_SECTION"]
+      print ""
+    }
     done=1
+    skip=1
     next
   }
   { print }
