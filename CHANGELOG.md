@@ -10,6 +10,8 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-16
+
 ### Added
 
 - Faster, position-accurate cleanup of abandoned playback on HTTPS servers when the Roku
