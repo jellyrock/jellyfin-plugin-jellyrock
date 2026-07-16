@@ -2,12 +2,20 @@
     {
         "guid": "6c4f4b7e-50f7-43b8-a180-7de26f9033d6",
         "name": "JellyRock Companion",
-        "description": "The server-side companion for the JellyRock Roku app, and the home for its server-assisted features as they grow. Today it makes JellyRock a \"Play On\" cast and remote-control target on HTTPS Jellyfin servers: cast from the Jellyfin web or mobile app to your Roku, then play, pause, and seek from your phone. Because Roku cannot open a secure socket (wss://), JellyRock relies on this plugin to receive those commands over TLS, making it the only Roku client for Jellyfin with Play On and remote-control support. Requires JellyRock v2.23.0 or newer.\n",
-        "overview": "Server-side companion for the JellyRock Roku app (Play On casting and remote control).",
+        "description": "The server-side companion for the JellyRock Roku app, and the home for its server-assisted features as they grow. Both features address limitations that exist only on HTTPS servers, where Roku cannot open a secure socket (wss://). First, on HTTPS it makes JellyRock a \"Play On\" cast and remote-control target: cast from the Jellyfin web or mobile app to your Roku, then play, pause, and seek from your phone, making it the only Roku client for Jellyfin with Play On support (requires JellyRock v2.23.0 or newer). Second, faster and position-accurate cleanup of abandoned playback: when you press Home on the Roku mid-video the app cannot tell the server it stopped, so on HTTPS the session lingers for 5-10 minutes with the transcode still running and, worse, Jellyfin keeps advancing the saved position after the app is gone, so it would resume you minutes ahead of where you stopped. The plugin detects the closed app within about a minute, stops the transcode, and saves the resume point where you actually stopped. On plain HTTP neither feature is needed, since JellyRock uses Jellyfin's native session socket directly.\n",
+        "overview": "Server-side companion for the JellyRock Roku app on HTTPS servers: Play On casting and remote control, plus fast session cleanup and an accurate resume position when the app is closed with the Home button during video playback.",
         "owner": "Charles Ewert",
         "category": "General",
         "imageUrl": "https://jellyrock.github.io/jellyfin-plugin-jellyrock/jellyrock.png",
         "versions": [
+            {
+                "version": "0.2.0.0",
+                "changelog": "reap idle JellyRock playback sessions on HTTPS servers ([#7](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/7))",
+                "targetAbi": "10.9.0.0",
+                "sourceUrl": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/releases/download/v0.2.0/jellyrock-companion_0.2.0.0.zip",
+                "checksum": "74814bef4cf91145bf66fee10472752b",
+                "timestamp": "2026-07-16T19:10:12Z"
+            },
             {
                 "version": "0.1.2.0",
                 "changelog": "Plugin catalog listing: clearer user-facing description, set the maintainer to Charles Ewert, and added the JellyRock icon. Documented that the plugin requires JellyRock v2.23.0 or newer (the release that added HTTPS remote-control support).",
