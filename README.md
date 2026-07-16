@@ -3,7 +3,11 @@
 The server-side companion for the [JellyRock](https://github.com/jellyrock/jellyrock) Roku client.
 Named for the role, not a single feature. Server-assisted JellyRock capabilities live here.
 
-## What it does today (issue #667)
+## Features
+
+The plugin bundles two independent server-assisted capabilities. **Neither has any settings.**
+
+### 1. "Play On" cast + remote control — HTTPS servers ([JellyRock issue #667](https://github.com/jellyrock/jellyrock/issues/667))
 
 Makes the JellyRock Roku app a remote-control **"Play On"** target on an **HTTPS** server.
 
@@ -20,16 +24,53 @@ them that way. This plugin bridges the gap:
    polling. When the app closes (or the poll loop dies), the liveness window lapses and Jellyfin's
    next cast-list query drops JellyRock automatically, no stale target left behind.
 
-The plain-HTTP path needs no plugin: there JellyRock opens Jellyfin's native session socket directly
-(shipped in JellyRock #666). This plugin is only for HTTPS / remote servers.
+On a **plain-HTTP** server this feature needs no plugin — there JellyRock opens Jellyfin's native
+session socket directly (shipped in [JellyRock #666](https://github.com/jellyrock/jellyrock/issues/666)) — so it only does something on HTTPS / remote
+servers.
 
 **Wire contract:** the long-poll protocol is frozen and versioned in the JellyRock repo at
 [`docs/architecture/remote-control-longpoll-contract.md`](https://github.com/jellyrock/jellyrock/blob/main/docs/architecture/remote-control-longpoll-contract.md).
 
+### 2. Fast closed-app playback cleanup — HTTPS servers ([JellyRock issue #43](https://github.com/jellyrock/jellyrock/issues/43))
+
+Press **Home** on the Roku mid-playback and the app is torn down instantly, with no chance to tell the
+server it stopped. On an **HTTP** server this already resolves itself: JellyRock holds Jellyfin's
+native session socket, so when the app closes the socket drops and the server removes the session
+within seconds (this is what fixed issue #43 for HTTP, via JellyRock's `ws://` support). On an
+**HTTPS** server Roku can't open that socket (no `wss://`), so nothing signals the close and Jellyfin
+keeps the transcode running with a phantom "now playing" until its own idle check reaps it ~5-10
+minutes later. This plugin shortens that to **~60 seconds**.
+
+A lightweight background sweep watches JellyRock sessions; when one is actively playing but its
+playback check-ins (the client's ~10s `Sessions/Playing/Progress` reports) have gone silent past a
+60-second threshold, it stops the session the same way Jellyfin's own idle reaper does, just on a
+faster clock.
+
+It records the resume point at the **last confirmed check-in** position rather than Jellyfin's
+forward-extrapolated one, so resuming later lands where you actually stopped instead of skipping
+ahead. Paused sessions are left untouched (Jellyfin's own paused/idle handling covers those).
+
+## Do I need it?
+
+**Only on HTTPS servers.** Both features address problems that exist specifically because Roku can't
+open a secure socket (`wss://`):
+
+- **Casting / remote control ("Play On" to Roku):** the plugin bridges cast commands over TLS. On a
+  plain-HTTP server this needs no plugin (JellyRock uses Jellyfin's native session socket directly).
+- **Fast closed-app playback cleanup:** on HTTPS a closed app leaves its session lingering ~5-10
+  minutes; the plugin reaps it in ~60 seconds. On HTTP that same native session socket already removes
+  the session within seconds when the app closes, so the plugin has nothing to do there.
+
+So: install it on an **HTTPS** server. On plain HTTP you don't need it for either feature.
+
 ## Requirements
 
-- **JellyRock v2.23.0 or newer** on your Roku. The HTTPS remote-control support that consumes this
-  plugin's long-poll channel shipped in JellyRock v2.23.0; earlier versions will not use the plugin.
+- **JellyRock on your Roku.** The fast closed-app playback cleanup (feature 2) requires **JellyRock
+  v1.15.0 or newer** — the release that moved playback progress reporting to a ~10s cadence, which the
+  cleanup relies on to detect a closed app safely; on older clients the plugin does nothing and
+  Jellyfin's default idle handling applies (unchanged). The "Play On" cast + remote control (feature 1)
+  requires **JellyRock v2.23.0 or newer** — the release that added the HTTPS remote-control support
+  that consumes this plugin's long-poll channel.
 - Jellyfin server **10.9-10.11**. The plugin is a single `net8.0` assembly compiled against the
   **10.9.0** API floor (`Jellyfin.Controller` / `Jellyfin.Model` and `targetAbi` are pinned there),
   which the compiler uses to guarantee only API present in every supported server is used. A net8
@@ -118,9 +159,10 @@ ssh "$HOST" 'docker logs '"$CT"' 2>&1 | grep -iE "Loaded plugin: JellyRock|Jelly
 
 ## Configuration
 
-None. The plugin has no settings: session matching is a fixed client identifier (`JellyRock`), and the
-closed-app liveness window is derived from the client's own poll cadence (`2 × waitMs`), so there is
-nothing to tune or misconfigure.
+None. The plugin has no settings: session matching is a fixed client identifier (`JellyRock`); the
+cast-target liveness window is derived from the client's own poll cadence (`2 × waitMs`); and the
+playback-cleanup threshold is a fixed 60 seconds (matching Jellyfin's own hardcoded idle reap, just
+faster). Nothing to tune or misconfigure.
 
 ## Layout
 
@@ -138,11 +180,13 @@ Jellyfin.Plugin.JellyRock/
   PluginServiceRegistrator.cs         # registers the session service into DI
   Configuration/PluginConfiguration.cs  # empty (BasePlugin requires the type)
   RemoteControl/
-    RemoteControlController.cs        # the /JellyRock/RemoteControl long-poll + probe endpoints
-    QueueingSessionController.cs      # ISessionController: queues commands + poll-liveness gating
-    JellyRockSessionService.cs        # attaches the controller + forces the capability
-    CommandEnvelope.cs                # the { MessageType, Data, MessageId } wire shape
-Jellyfin.Plugin.JellyRock.Tests/      # xUnit tests (queue / liveness / enum-serialization / concurrency)
+    RemoteControlController.cs        # the /JellyRock/RemoteControl long-poll + probe endpoints (feature 1)
+    QueueingSessionController.cs      # ISessionController: queues commands + poll-liveness gating (feature 1)
+    JellyRockSessionService.cs        # attaches the controller + forces the capability (feature 1)
+    CommandEnvelope.cs                # the { MessageType, Data, MessageId } wire shape (feature 1)
+    PlaybackReaperService.cs          # sweeps + reaps idle JellyRock playback sessions (feature 2, jellyrock#43)
+    ReapDecision.cs                   # pure reap-eligibility rule + resume-position correction (feature 2)
+Jellyfin.Plugin.JellyRock.Tests/      # xUnit tests (queue / liveness / serialization / concurrency / reaper)
 ```
 
 ## Releasing

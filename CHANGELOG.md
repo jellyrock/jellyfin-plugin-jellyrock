@@ -10,6 +10,20 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
 
+### Added
+
+- Fast closed-app playback cleanup for HTTPS servers: a background sweep stops a
+  JellyRock playback session ~60 seconds after the Roku app is closed mid-video,
+  instead of waiting ~5-10 minutes for Jellyfin's own idle check, freeing the transcode
+  and clearing the phantom "now playing". It records the resume point at the last
+  confirmed position so resuming lands where you stopped rather than skipping ahead. On
+  HTTP the issue is already handled by JellyRock's native session socket (the socket
+  drops on app close and the server removes the session within seconds), so this targets
+  the HTTPS case where no such socket exists. Requires JellyRock v1.15.0 or newer (the
+  release that moved to a ~10s playback-report cadence); paused sessions are left to
+  Jellyfin's own handling.
+  ([#43](https://github.com/jellyrock/jellyrock/issues/43))
+
 ## [0.1.2] - 2026-07-15
 
 ### Changed
