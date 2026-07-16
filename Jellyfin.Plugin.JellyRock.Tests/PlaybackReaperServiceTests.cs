@@ -93,6 +93,70 @@ public class PlaybackReaperServiceTests
     }
 
     [Fact]
+    public async Task SweepAsync_ReapedSession_MapsEveryStopInfoField()
+    {
+        // Guards the full PlaybackStopInfo mapping, not just SessionId/PositionTicks: a future refactor
+        // that drops Item, ItemId, or MediaSourceId would silently break resume/cleanup, so pin them all.
+        var session = BuildSession(
+            client: JellyRockSessionService.JellyRockClientName,
+            checkInSecondsAgo: 90,
+            isPaused: false,
+            positionSeconds: 690,
+            id: "sess-map");
+        var expectedItem = session.NowPlayingItem;
+        var expectedItemId = session.NowPlayingItem!.Id;
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.Received(1).OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i =>
+            i.SessionId == "sess-map"
+            && ReferenceEquals(i.Item, expectedItem)
+            && i.ItemId == expectedItemId
+            && i.MediaSourceId == "ms-1"));
+    }
+
+    [Fact]
+    public async Task SweepAsync_MixedSessions_ReapsOnlyTheStaleJellyRockSession()
+    {
+        // A realistic sweep: one reapable session amid healthy/ineligible ones must reap exactly the one.
+        var reapable = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 690, id: "stale");
+        var fresh = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 20, isPaused: false, positionSeconds: 300, id: "fresh");
+        var paused = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 300, isPaused: true, positionSeconds: 300, id: "paused");
+        var nonJellyRock = BuildSession(
+            "Jellyfin Web", checkInSecondsAgo: 300, isPaused: false, positionSeconds: 300, id: "web");
+        _sessionManager.Sessions.Returns(new[] { fresh, reapable, paused, nonJellyRock });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.Received(1).OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
+        await _sessionManager.Received(1).OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i => i.SessionId == "stale"));
+    }
+
+    [Fact]
+    public async Task SweepAsync_OneSessionThrows_StillReapsTheRest()
+    {
+        // The per-session try/catch must isolate a failing reap so the sweep finishes the remaining
+        // sessions — verifies the resilience the SweepAsync catch block promises.
+        var bad = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 690, id: "bad");
+        var good = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 690, id: "good");
+        _sessionManager.Sessions.Returns(new[] { bad, good });
+        _sessionManager
+            .When(x => x.OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i => i.SessionId == "bad")))
+            .Do(_ => throw new InvalidOperationException("reap boom"));
+
+        await BuildService().SweepAsync();
+
+        // The good session is still reaped despite the bad one throwing.
+        await _sessionManager.Received(1).OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i => i.SessionId == "good"));
+    }
+
+    [Fact]
     public async Task SweepAsync_NonJellyRockClient_DoesNotReap()
     {
         var session = BuildSession(
@@ -115,10 +179,11 @@ public class PlaybackReaperServiceTests
         int checkInSecondsAgo,
         bool isPaused,
         int positionSeconds,
-        string appVersion = "2.23.0") =>
+        string appVersion = "2.23.0",
+        string id = "sess-1") =>
         new(_sessionManager, Substitute.For<ILogger>())
         {
-            Id = "sess-1",
+            Id = id,
             Client = client,
             ApplicationVersion = appVersion,
             DeviceName = "Living Room Roku",

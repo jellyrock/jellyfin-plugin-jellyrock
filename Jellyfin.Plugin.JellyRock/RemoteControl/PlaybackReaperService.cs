@@ -15,8 +15,8 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 /// resolves itself: JellyRock holds Jellyfin's native session WebSocket, so when the app closes the
 /// socket drops and the server removes the session within seconds. On HTTPS, Roku has no socket TLS
 /// (no <c>wss://</c>), so nothing signals the close: the session lingers until Jellyfin's own idle
-/// reaper clears it, but only after a coarse ~5-10 minute check, leaving the transcode running and the
-/// dashboard showing a phantom "now playing" until then.
+/// reaper clears it, but only after a coarse ~5-10 minute check, leaving any active transcode running
+/// and the dashboard showing a phantom "now playing" until then.
 /// <para>
 /// This worker sweeps the session list on a short cadence and reaps any JellyRock session that is
 /// actively playing but whose last real playback check-in (the client's ~10s <c>Sessions/Playing/Progress</c>
@@ -24,8 +24,8 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 /// so the mechanism itself is transport-agnostic; in practice it only fires on HTTPS, since on HTTP the
 /// native session socket has already removed the closed-app session before this window elapses (so it
 /// also stays a harmless safety net there). Reaping calls <see cref="ISessionManager.OnPlaybackStopped"/>,
-/// exactly as Jellyfin's own idle check does, so it frees the transcode and clears the session through
-/// the normal path, just on a faster, purpose-built clock. See <see cref="ReapDecision"/> for the
+/// exactly as Jellyfin's own idle check does, so it frees any active transcode and clears the session
+/// through the normal path, just on a faster, purpose-built clock. See <see cref="ReapDecision"/> for the
 /// eligibility rule and the resume-position correction (which keeps the recorded resume point at the
 /// user's real stop rather than the server's forward-extrapolated one).
 /// </para>
@@ -38,6 +38,14 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
     /// a setting — the plugin has no user-tunable configuration, and Jellyfin's own analogous idle
     /// threshold is likewise hardcoded. The resume-position correction (see <see cref="ReapDecision"/>)
     /// decouples resume accuracy from this value, so it is chosen purely for false-positive safety.
+    /// <para>
+    /// A mid-playback buffer is NOT a false positive: verified against the JellyRock client, the ~10s
+    /// report timer keeps firing while buffering (only pause/stop/finished/error stop it), so a
+    /// transiently-stalled-but-alive session keeps checking in and is never reaped; and a non-progressing
+    /// stall is escalated by the client's own buffer-check to a self-reported stop within ~30s. This
+    /// threshold therefore only elapses for a client that is genuinely unreachable — the correct case to
+    /// reap — which is also why 60s is safe rather than aggressive.
+    /// </para>
     /// </summary>
     private const int StaleThresholdSeconds = 60;
 
@@ -147,6 +155,9 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
             try
             {
                 // Mirror Jellyfin's own CheckForIdlePlayback stop, with the de-extrapolated position.
+                // OnPlaybackStopped clears session.NowPlayingItem synchronously (via RemoveNowPlayingItem)
+                // before it awaits, so a reaped session fails the hasNowPlaying gate on the next sweep —
+                // no re-reap, no de-dupe bookkeeping needed. (Verified in server 10.9-10.11.)
                 await _sessionManager.OnPlaybackStopped(new PlaybackStopInfo
                 {
                     Item = nowPlaying,
@@ -165,7 +176,9 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
             catch (Exception ex)
             {
                 // One bad session must not abort the sweep (mirrors the server's per-session try/catch).
-                _logger.LogDebug(ex, "[JellyRock] error reaping idle playback session {SessionId}", session.Id);
+                // Logged at Warning, not Debug: a reap that keeps failing is an operator-visible problem
+                // (a session that won't clear), not routine noise — one line per failed sweep at most.
+                _logger.LogWarning(ex, "[JellyRock] error reaping idle playback session {SessionId}", session.Id);
             }
         }
     }

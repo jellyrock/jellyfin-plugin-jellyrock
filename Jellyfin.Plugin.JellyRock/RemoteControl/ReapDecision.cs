@@ -34,6 +34,15 @@ public static class ReapDecision
     /// idle/inactive reaping rather than fast-killed by this plugin — a paused transcode is low-cost
     /// and the resume-position correction below does not apply while paused.
     /// </para>
+    /// <para>
+    /// This exclusion is load-bearing and depends on client behavior that has been verified in the
+    /// JellyRock source: on pause the client sends exactly one progress report with <c>IsPaused=true</c>
+    /// and then stops its report timer (VideoPlayerView.bs <c>onState</c> "paused" branch). That single
+    /// report is why <paramref name="isPaused"/> can be trusted here even though check-ins then go stale —
+    /// the server's paused flag is set before the silence begins. If a future client stopped reporting on
+    /// pause WITHOUT that final paused report, this gate would no longer protect paused-but-alive
+    /// sessions, so keep the two in sync.
+    /// </para>
     /// </summary>
     /// <param name="client">The session's <c>Client</c> string.</param>
     /// <param name="appVersion">The session's <c>ApplicationVersion</c> string.</param>
