@@ -19,6 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The test project drives PlaybackReaperService.SweepAsync() directly so the reap wiring is
+         verified without waiting on the timer; it stays internal to keep it off the public surface. -->
+    <InternalsVisibleTo Include="Jellyfin.Plugin.JellyRock.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Compiled against the OLDEST supported server line (10.9.0) on purpose: this makes the
          compiler ENFORCE the support floor — the plugin can only bind to API present in every server
          we target, so we can't silently pick up a 10.10/10.11-only member. A single net8.0 assembly
