@@ -12,16 +12,19 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ### Added
 
-- Fast closed-app playback cleanup for HTTPS servers: a background sweep stops a
-  JellyRock playback session ~60 seconds after the Roku app is closed mid-video,
-  instead of waiting ~5-10 minutes for Jellyfin's own idle check, freeing the transcode
-  and clearing the phantom "now playing". It records the resume point at the last
-  confirmed position so resuming lands where you stopped rather than skipping ahead. On
-  HTTP the issue is already handled by JellyRock's native session socket (the socket
-  drops on app close and the server removes the session within seconds), so this targets
-  the HTTPS case where no such socket exists. Requires JellyRock v1.15.0 or newer (the
-  release that moved to a ~10s playback-report cadence); paused sessions are left to
-  Jellyfin's own handling.
+- Fast playback-session cleanup for HTTPS servers when the Roku app is closed with the
+  Home button during active video playback: a background sweep stops the JellyRock
+  session ~60 seconds after the app is torn down mid-playback, instead of waiting ~5-10
+  minutes for Jellyfin's own idle check, freeing the transcode and clearing the phantom
+  "now playing". (Pressing Home tears the Roku app down instantly with no chance to tell
+  the server it stopped; other exits let the app report the stop itself, and a paused or
+  idle app has nothing to clean up.) It records the resume point at the last confirmed
+  position so resuming lands where you stopped rather than skipping ahead. On HTTP the
+  issue is already handled by JellyRock's native session socket (the socket drops on app
+  close and the server removes the session within seconds), so this targets the HTTPS
+  case where no such socket exists. Requires JellyRock v1.15.0 or newer (the release that
+  moved to a ~10s playback-report cadence); paused sessions are left to Jellyfin's own
+  handling.
   ([#43](https://github.com/jellyrock/jellyrock/issues/43))
 
 ## [0.1.2] - 2026-07-15
