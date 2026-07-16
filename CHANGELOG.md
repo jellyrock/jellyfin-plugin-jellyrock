@@ -12,24 +12,7 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [0.2.0] - 2026-07-16
 
-### Added
-
-- Faster, position-accurate cleanup of abandoned playback on HTTPS servers when the Roku
-  app is closed with the Home button during active video playback. It fixes two things:
-  (1) a background sweep stops the JellyRock session ~60 seconds after the app is torn
-  down mid-playback, instead of waiting ~5-10 minutes for Jellyfin's own idle check,
-  freeing the transcode and clearing the phantom "now playing"; and (2) it saves the
-  resume point at the user's last confirmed position — Jellyfin's idle reaper keeps
-  auto-advancing the position after the app is gone and would record one up to ~5 minutes
-  past where the user actually stopped, so without this the user resumes minutes ahead and
-  skips content. (Pressing Home tears the Roku app down instantly with no chance to tell
-  the server it stopped; other exits let the app report the stop itself, and a paused or
-  idle app has nothing to clean up.) On HTTP the issue is already handled by JellyRock's
-  native session socket (the socket drops on app close and the server removes the session
-  within seconds), so this targets the HTTPS case where no such socket exists. Requires
-  JellyRock v1.15.0 or newer (the release that moved to a ~10s playback-report cadence);
-  paused sessions are left to Jellyfin's own handling.
-  ([#43](https://github.com/jellyrock/jellyrock/issues/43))
+- reap idle JellyRock playback sessions on HTTPS servers ([#7](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/7))
 
 ## [0.1.2] - 2026-07-15
 
