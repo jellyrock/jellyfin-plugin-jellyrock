@@ -52,6 +52,29 @@ public static class PairingDecision
     }
 
     /// <summary>
+    /// Whether the phantom cast target should be advertised for a pairing <b>right now</b> (issue #668,
+    /// P2). Three conditions, all required: the pairing is <see cref="IsAdvertisable(PairingRecord, DateTime, TimeSpan)"/>
+    /// (validated + fresh, the persisted-state gate); the app is <b>not</b> currently open
+    /// (<paramref name="appIsOpen"/> — an open app owns its own live session and full capabilities, so the
+    /// manager must not stomp them with the reduced closed-state set); and a live advertise-time reachability
+    /// re-probe still passes (<paramref name="reachableNow"/> — a Roku that has since powered off or left the
+    /// LAN drops from the live cast list rather than lingering as an un-wakeable target). The two liveness
+    /// signals are computed by the caller (session-manager state and an ECP probe) and injected, so this stays
+    /// pure and deterministic like the rest of <see cref="PairingDecision"/>.
+    /// </summary>
+    /// <param name="record">The pairing to test.</param>
+    /// <param name="appIsOpen">Whether a live (poll-fresh) JellyRock session already exists for this device.</param>
+    /// <param name="reachableNow">Whether a live ECP re-probe of the validated wake address currently answers.</param>
+    /// <param name="now">The reference time (UTC).</param>
+    /// <param name="window">The freshness window.</param>
+    /// <returns><c>true</c> if the phantom should be published/kept live for this pairing.</returns>
+    public static bool ShouldPublish(PairingRecord record, bool appIsOpen, bool reachableNow, DateTime now, TimeSpan window)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        return !appIsOpen && reachableNow && IsAdvertisable(record, now, window);
+    }
+
+    /// <summary>
     /// Produce the new pairing set after a fresh report: any existing record for the same device is
     /// replaced by <paramref name="incoming"/>, records that have gone stale (past the window at
     /// <paramref name="now"/>) are pruned, and everything else is preserved in order. Prune-on-write keeps

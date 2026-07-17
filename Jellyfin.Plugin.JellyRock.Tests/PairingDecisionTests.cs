@@ -73,6 +73,41 @@ public class PairingDecisionTests
     }
 
     [Fact]
+    public void ShouldPublish_ClosedValidatedFreshReachable_True()
+    {
+        // The nominal cold-cast case: app closed, pairing validated + fresh, Roku still answers ECP.
+        Assert.True(PairingDecision.ShouldPublish(Record("d1", Now.AddDays(-1)), appIsOpen: false, reachableNow: true, Now, Window));
+    }
+
+    [Fact]
+    public void ShouldPublish_AppOpen_False()
+    {
+        // Open app owns its own live session + full capabilities; the manager must not publish the
+        // reduced closed-state phantom over it.
+        Assert.False(PairingDecision.ShouldPublish(Record("d1", Now.AddDays(-1)), appIsOpen: true, reachableNow: true, Now, Window));
+    }
+
+    [Fact]
+    public void ShouldPublish_UnreachableNow_False()
+    {
+        // Validated + fresh in the store, but the live re-probe failed (Roku powered off / left the LAN):
+        // it must drop from the cast list rather than linger as an un-wakeable target.
+        Assert.False(PairingDecision.ShouldPublish(Record("d1", Now.AddDays(-1)), appIsOpen: false, reachableNow: false, Now, Window));
+    }
+
+    [Fact]
+    public void ShouldPublish_NotValidated_False()
+    {
+        Assert.False(PairingDecision.ShouldPublish(Record("d1", Now.AddDays(-1), validated: false), appIsOpen: false, reachableNow: true, Now, Window));
+    }
+
+    [Fact]
+    public void ShouldPublish_Stale_False()
+    {
+        Assert.False(PairingDecision.ShouldPublish(Record("d1", Now.AddDays(-30)), appIsOpen: false, reachableNow: true, Now, Window));
+    }
+
+    [Fact]
     public void Upsert_NewDevice_Appended()
     {
         var existing = new[] { Record("d1", Now.AddDays(-1)) };

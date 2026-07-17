@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
@@ -23,10 +23,10 @@
   <ItemGroup>
     <!-- The plugin excludes the Jellyfin runtime assemblies (the server supplies them); the test
          host has no server, so reference them fully here to load the controller's types. Pinned to
-         the same 10.9.0 support floor as the plugin, so the tests exercise the floor's actual runtime
+         the same 10.11.0 support floor as the plugin, so the tests exercise the floor's actual runtime
          behavior (EnsureController, the live SupportsRemoteControl getter). -->
-    <PackageReference Include="Jellyfin.Controller" Version="10.9.0" />
-    <PackageReference Include="Jellyfin.Model" Version="10.9.0" />
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.0" />
+    <PackageReference Include="Jellyfin.Model" Version="10.11.0" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 

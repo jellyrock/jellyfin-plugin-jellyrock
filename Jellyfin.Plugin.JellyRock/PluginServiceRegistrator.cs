@@ -18,7 +18,12 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<JellyRockSessionService>();
         serviceCollection.AddHostedService<PlaybackReaperService>();
 
-        // Resolved by RemoteControlController for the cold-launch pairing reachability probe (#668).
+        // Publishes the cold-launch phantom cast target for validated+reachable pairings while JellyRock
+        // is closed (#668, P2). Reuses PairingValidationService for the advertise-time reachability re-probe.
+        serviceCollection.AddHostedService<PhantomSessionService>();
+
+        // Resolved by RemoteControlController (pairing reachability probe) and PhantomSessionService
+        // (advertise-time re-probe) for the cold-launch producer (#668).
         serviceCollection.AddSingleton<PairingValidationService>();
     }
 }
