@@ -30,10 +30,11 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 ///
 /// <para>Self-gating: the server fans a command to <b>every</b> controller on a session regardless of its
 /// advertised capabilities, so when the app is OPEN this controller still receives the command — where the
-/// live <see cref="QueueingSessionController"/> long-poll already delivers it. Firing ECP then would
-/// re-<c>/launch</c> an already-running app (disruptive). So the wake is suppressed whenever a live
-/// <see cref="QueueingSessionController"/> is attached (<see cref="PhantomSessionService.IsAppOpen"/>); this
-/// needs no controller detach and stays correct through the open/closed transition.</para>
+/// live remote-control channel already delivers it (the long-poll on HTTPS, or Jellyfin's native
+/// <c>ws://</c> session socket on HTTP). Firing ECP then would re-<c>/launch</c> an already-running app
+/// (disruptive). So the wake is suppressed whenever the app is open — any live non-phantom controller is
+/// attached (<see cref="PhantomSessionService.IsAppOpen"/>); this needs no controller detach and stays
+/// correct through the open/closed transition on either transport.</para>
 /// </summary>
 public sealed class PhantomSessionController : ISessionController
 {
@@ -83,8 +84,9 @@ public sealed class PhantomSessionController : ISessionController
     /// <inheritdoc />
     public Task SendMessage<T>(SessionMessageType name, Guid messageId, T data, CancellationToken cancellationToken)
     {
-        // If the app is open, the live QueueingSessionController long-poll already delivers this command;
-        // firing ECP would re-launch a running app. Suppress and let the live path own it.
+        // If the app is open, its live remote-control channel already delivers this command (the long-poll on
+        // HTTPS, or Jellyfin's native ws:// socket on HTTP); firing ECP would re-launch a running app. Suppress
+        // and let the live path own it.
         if (PhantomSessionService.IsAppOpen(_session))
         {
             return Task.CompletedTask;

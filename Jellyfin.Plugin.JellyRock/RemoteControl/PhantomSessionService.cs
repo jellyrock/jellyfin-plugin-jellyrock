@@ -26,10 +26,11 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 /// open and closed are one continuous identity keyed by the paired Jellyfin <c>DeviceId</c>. That makes the
 /// open/closed swap a matter of who owns the session's capabilities at any moment:</para>
 /// <list type="bullet">
-///   <item><b>Closed</b> (no poll-fresh <see cref="QueueingSessionController"/>): this service forces the
+///   <item><b>Closed</b> (no live non-phantom controller — see <see cref="IsAppOpen"/>): this service forces the
 ///     reduced <c>SupportedCommands=[DisplayContent]</c> set and keeps the <see cref="PhantomSessionController"/>
 ///     live, so the web renders only the wake affordance and no no-op transport controls.</item>
-///   <item><b>Open</b> (<see cref="IsAppOpen"/>): the live session reports its own full capabilities; this
+///   <item><b>Open</b> (<see cref="IsAppOpen"/> — a live long-poll controller on HTTPS <em>or</em> native
+///     <c>ws://</c> controller on HTTP): the live session reports its own full capabilities; this
 ///     service must <b>not</b> touch it — it neither refreshes activity nor rewrites capabilities, so it can
 ///     never stomp the open app's controls. The phantom controller stays attached but self-suppresses its ECP
 ///     wake while open (see <see cref="PhantomSessionController"/>).</item>
@@ -87,19 +88,31 @@ public sealed class PhantomSessionService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// Whether JellyRock is currently <b>open</b> for this session: a live (poll-fresh)
-    /// <see cref="QueueingSessionController"/> is attached. That controller reports
-    /// <see cref="QueueingSessionController.IsSessionActive"/> only while the app is polling the long-poll
-    /// channel, so its presence-and-liveness is the authoritative open signal. Shared with
-    /// <see cref="PhantomSessionController"/> so both the publish guard and the wake suppression use one
-    /// definition of "open".
+    /// Whether JellyRock is currently <b>open</b> for this session — <b>transport-agnostic</b>: any live
+    /// session controller OTHER than our own phantom is attached. This must span both remote-control
+    /// transports, because the app's open-state signal differs by server scheme (issue #668 HTTP fix):
+    /// <list type="bullet">
+    ///   <item>On <b>HTTPS</b> the open app drives our long-poll — a poll-fresh
+    ///     <see cref="QueueingSessionController"/> (alive iff a poll is fresh).</item>
+    ///   <item>On <b>HTTP</b> the open app uses Jellyfin's native session socket — a
+    ///     <c>WebSocketController</c> (alive iff a socket is open). The app never polls our long-poll on
+    ///     HTTP, so a <see cref="QueueingSessionController"/>-only check reads a wide-open HTTP app as
+    ///     closed, and the service keeps forcing reduced caps + re-firing the ECP wake onto the live
+    ///     native session.</item>
+    /// </list>
+    /// Both native controllers report <see cref="ISessionController.IsSessionActive"/> from their live
+    /// transport, so testing every non-phantom controller is the one open signal that spans both — the same
+    /// shape Jellyfin's own <c>SessionManager</c> uses for session liveness. The <see cref="PhantomSessionController"/>
+    /// is excluded: it reports active while advertising a <em>closed</em> app, so counting it would read every
+    /// published phantom as "open". Shared with <see cref="PhantomSessionController"/> so both the publish guard
+    /// and the wake suppression use one definition of "open".
     /// </summary>
     /// <param name="session">The session to test.</param>
-    /// <returns><c>true</c> if the app is open (a live long-poll controller is attached).</returns>
+    /// <returns><c>true</c> if the app is open (a live non-phantom controller is attached).</returns>
     internal static bool IsAppOpen(SessionInfo session)
     {
         ArgumentNullException.ThrowIfNull(session);
-        return session.SessionControllers.OfType<QueueingSessionController>().Any(c => c.IsSessionActive);
+        return session.SessionControllers.Any(c => c is not PhantomSessionController && c.IsSessionActive);
     }
 
     /// <inheritdoc />
