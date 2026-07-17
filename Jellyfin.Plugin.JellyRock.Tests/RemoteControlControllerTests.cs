@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,6 +30,7 @@ public class RemoteControlControllerTests
     private const string ClientClaim = "Jellyfin-Client";
 
     private readonly ISessionManager _sessionManager = Substitute.For<ISessionManager>();
+    private readonly IHttpClientFactory _httpClientFactory = Substitute.For<IHttpClientFactory>();
 
     [Fact]
     public async Task Poll_MissingClaims_ReturnsUnauthorized()
@@ -120,10 +122,65 @@ public class RemoteControlControllerTests
         Assert.NotNull(ok.Value);
     }
 
+    [Fact]
+    public async Task Pair_MissingClaims_ReturnsUnauthorized()
+    {
+        var controller = BuildController(); // no claims
+
+        var result = await controller.Pair(ValidPairRequest(), CancellationToken.None);
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact]
+    public async Task Pair_NonJellyRockClient_ReturnsForbid()
+    {
+        var controller = BuildController(
+            new Claim(DeviceIdClaim, "device-1"),
+            new Claim(ClientClaim, "Jellyfin Web"));
+
+        var result = await controller.Pair(ValidPairRequest(), CancellationToken.None);
+
+        // Only a JellyRock session may register a JellyRock cast target.
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task Pair_EmptyBody_ReturnsBadRequest()
+    {
+        var controller = BuildController(
+            new Claim(DeviceIdClaim, "device-1"),
+            new Claim(ClientClaim, JellyRockSessionService.JellyRockClientName));
+
+        // No addresses to wake -> nothing to pair.
+        var result = await controller.Pair(new PairRequest { RokuIps = Array.Empty<string>(), AppId = "dev" }, CancellationToken.None);
+
+        Assert.IsType<BadRequestResult>(result);
+    }
+
+    [Fact]
+    public async Task Pair_NoMatchingSession_ReturnsNotFound()
+    {
+        // Valid JellyRock claims + a well-formed body, but no live session for this device.
+        _sessionManager.Sessions.Returns(Array.Empty<SessionInfo>());
+        var controller = BuildController(
+            new Claim(DeviceIdClaim, "device-1"),
+            new Claim(ClientClaim, JellyRockSessionService.JellyRockClientName));
+
+        var result = await controller.Pair(ValidPairRequest(), CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    private static PairRequest ValidPairRequest() =>
+        new() { RokuIps = new[] { "192.168.1.5" }, AppId = "dev", IsDev = true };
+
     private RemoteControlController BuildController(params Claim[] claims)
     {
         var identity = new ClaimsIdentity(claims, authenticationType: "Test");
-        return new RemoteControlController(_sessionManager)
+        var pairingValidation = new PairingValidationService(
+            _httpClientFactory, Substitute.For<ILogger<PairingValidationService>>());
+        return new RemoteControlController(_sessionManager, pairingValidation)
         {
             ControllerContext = new ControllerContext
             {

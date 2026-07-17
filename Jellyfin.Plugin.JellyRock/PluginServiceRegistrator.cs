@@ -17,5 +17,8 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddHostedService<JellyRockSessionService>();
         serviceCollection.AddHostedService<PlaybackReaperService>();
+
+        // Resolved by RemoteControlController for the cold-launch pairing reachability probe (#668).
+        serviceCollection.AddSingleton<PairingValidationService>();
     }
 }

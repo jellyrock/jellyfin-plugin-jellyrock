@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Net.Mime;
 using System.Threading;
@@ -36,14 +37,17 @@ public class RemoteControlController : ControllerBase
     private const string ClientClaim = "Jellyfin-Client";
 
     private readonly ISessionManager _sessionManager;
+    private readonly PairingValidationService _pairingValidation;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RemoteControlController"/> class.
     /// </summary>
     /// <param name="sessionManager">The session manager.</param>
-    public RemoteControlController(ISessionManager sessionManager)
+    /// <param name="pairingValidation">The cold-launch pairing reachability probe.</param>
+    public RemoteControlController(ISessionManager sessionManager, PairingValidationService pairingValidation)
     {
         _sessionManager = sessionManager;
+        _pairingValidation = pairingValidation;
     }
 
     /// <summary>
@@ -117,5 +121,73 @@ public class RemoteControlController : ControllerBase
         }
 
         return Ok(batch);
+    }
+
+    /// <summary>
+    /// Cold-launch pairing report (issue #668). A JellyRock client posts its LAN addresses + ECP app
+    /// identity so the server can wake it via ECP <c>/launch</c> while the app is closed. Identity is
+    /// bound from the caller's authenticated session (never the body), the reported addresses are probed
+    /// to find one the server can reach, and the validated pairing is persisted. Fire-and-forget on the
+    /// client side, so the response body is only a courtesy status.
+    /// </summary>
+    /// <param name="request">The pairing report body (addresses + app identity).</param>
+    /// <param name="cancellationToken">Request cancellation (client disconnect).</param>
+    /// <returns>200 with the validation status, or an error status.</returns>
+    [HttpPost("pair")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> Pair([FromBody] PairRequest request, CancellationToken cancellationToken = default)
+    {
+        var deviceId = User.FindFirst(DeviceIdClaim)?.Value;
+        var client = User.FindFirst(ClientClaim)?.Value;
+        if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(client))
+        {
+            return Unauthorized();
+        }
+
+        // Only a JellyRock session may register a JellyRock cast target (identity from the claim, never a body field).
+        if (!string.Equals(client, JellyRockSessionService.JellyRockClientName, StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
+        if (request?.RokuIps is null || request.RokuIps.Count == 0 || string.IsNullOrWhiteSpace(request.AppId))
+        {
+            return BadRequest();
+        }
+
+        // Resolve THIS caller's live session (it just reported, so it is open) — the trusted source of the
+        // owning user and the endpoint the server saw the device connect from.
+        var session = _sessionManager.Sessions.FirstOrDefault(s =>
+            string.Equals(s.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(s.Client, client, StringComparison.OrdinalIgnoreCase));
+        if (session is null)
+        {
+            return NotFound();
+        }
+
+        var now = DateTime.UtcNow;
+        var wakeIp = await _pairingValidation.FindReachableWakeIpAsync(request.RokuIps, cancellationToken).ConfigureAwait(false);
+        var validated = wakeIp is not null;
+
+        var record = new PairingRecord
+        {
+            JellyfinDeviceId = deviceId,
+            UserId = session.UserId.ToString("N", CultureInfo.InvariantCulture),
+            AppId = request.AppId,
+            IsDev = request.IsDev,
+            RemoteEndPoint = session.RemoteEndPoint ?? string.Empty,
+            WakeIp = wakeIp ?? string.Empty,
+            Validated = validated,
+            LastValidated = validated ? now : default,
+            LastSeen = now
+        };
+
+        PairingStore.Upsert(record, now);
+        return Ok(new { Validated = validated });
     }
 }
