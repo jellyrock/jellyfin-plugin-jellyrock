@@ -175,25 +175,35 @@ public sealed class PhantomSessionService : IHostedService, IDisposable
         // mutate what we iterate.
         var pairings = plugin.Configuration.Pairings.ToList();
 
+        // Snapshot the admin toggles for this pass (issue #668). Flipping either off makes ShouldPublish
+        // fail below, so the existing revoke path drops the phantom on this same tick — no extra teardown.
+        var coldCastEnabled = plugin.Configuration.EnableColdLaunchCasting;
+        var includeDevBuilds = plugin.Configuration.IncludeDevelopmentBuilds;
+
         foreach (var record in pairings)
         {
-            await RefreshPairingAsync(record, now).ConfigureAwait(false);
+            await RefreshPairingAsync(record, coldCastEnabled, includeDevBuilds, now).ConfigureAwait(false);
         }
     }
 
-    private async Task RefreshPairingAsync(PairingRecord record, DateTime now)
+    private async Task RefreshPairingAsync(PairingRecord record, bool coldCastEnabled, bool includeDevBuilds, DateTime now)
     {
         var existing = FindSession(record.JellyfinDeviceId);
         var appIsOpen = existing is not null && IsAppOpen(existing);
 
+        // Admin gate (issue #668): the master toggle plus the dev-build filter. When it disallows this
+        // pairing, short-circuit so the live ECP re-probe below never fires for a disabled target.
+        var configAllows = PairingDecision.ConfigAllowsPublish(record, coldCastEnabled, includeDevBuilds);
+
         // Re-probe the validated wake address live so a Roku that has powered off / left the LAN drops off,
         // even though the persisted record is still validated + fresh. Skipped when the app is open (the live
-        // session owns the presence then) and when there is nothing to advertise.
-        var reachableNow = !appIsOpen
+        // session owns the presence then), when config disallows publishing, and when there is nothing to advertise.
+        var reachableNow = configAllows
+            && !appIsOpen
             && PairingDecision.IsAdvertisable(record, now, PairingDecision.FreshnessWindow)
             && await _pairingValidation.FindReachableWakeIpAsync(new[] { record.WakeIp }, CancellationToken.None).ConfigureAwait(false) is not null;
 
-        if (!PairingDecision.ShouldPublish(record, appIsOpen, reachableNow, now, PairingDecision.FreshnessWindow))
+        if (!configAllows || !PairingDecision.ShouldPublish(record, appIsOpen, reachableNow, now, PairingDecision.FreshnessWindow))
         {
             // Revoke: flip any attached phantom controller off so the device drops from the cast list. Do NOT
             // touch capabilities or refresh activity — when the app is open that would stomp its live session,

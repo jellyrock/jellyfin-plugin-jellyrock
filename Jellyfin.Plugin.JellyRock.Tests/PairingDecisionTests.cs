@@ -107,6 +107,53 @@ public class PairingDecisionTests
         Assert.False(PairingDecision.ShouldPublish(Record("d1", Now.AddDays(-30)), appIsOpen: false, reachableNow: true, Now, Window));
     }
 
+    private static PairingRecord DevRecord(string deviceId, DateTime lastSeen)
+    {
+        var record = Record(deviceId, lastSeen);
+        record.IsDev = true;
+        return record;
+    }
+
+    [Fact]
+    public void ConfigAllowsPublish_MasterEnabled_PublishedBuild_True()
+    {
+        Assert.True(PairingDecision.ConfigAllowsPublish(Record("d1", Now.AddDays(-1)), coldCastEnabled: true, includeDevBuilds: true));
+    }
+
+    [Fact]
+    public void ConfigAllowsPublish_MasterDisabled_PublishedBuild_False()
+    {
+        // Master off gates every pairing, dev or not.
+        Assert.False(PairingDecision.ConfigAllowsPublish(Record("d1", Now.AddDays(-1)), coldCastEnabled: false, includeDevBuilds: true));
+    }
+
+    [Fact]
+    public void ConfigAllowsPublish_PublishedBuild_DevFilterOff_True()
+    {
+        // The dev filter must never gate a published (non-dev) install.
+        Assert.True(PairingDecision.ConfigAllowsPublish(Record("d1", Now.AddDays(-1)), coldCastEnabled: true, includeDevBuilds: false));
+    }
+
+    [Fact]
+    public void ConfigAllowsPublish_DevBuild_DevFilterOn_True()
+    {
+        Assert.True(PairingDecision.ConfigAllowsPublish(DevRecord("d1", Now.AddDays(-1)), coldCastEnabled: true, includeDevBuilds: true));
+    }
+
+    [Fact]
+    public void ConfigAllowsPublish_DevBuild_DevFilterOff_False()
+    {
+        // The test/CI-device case: a sideloaded build is suppressed while the dev filter is off.
+        Assert.False(PairingDecision.ConfigAllowsPublish(DevRecord("d1", Now.AddDays(-1)), coldCastEnabled: true, includeDevBuilds: false));
+    }
+
+    [Fact]
+    public void ConfigAllowsPublish_MasterDisabled_DevBuild_False()
+    {
+        // Master off dominates the dev filter.
+        Assert.False(PairingDecision.ConfigAllowsPublish(DevRecord("d1", Now.AddDays(-1)), coldCastEnabled: false, includeDevBuilds: true));
+    }
+
     [Fact]
     public void Upsert_NewDevice_Appended()
     {

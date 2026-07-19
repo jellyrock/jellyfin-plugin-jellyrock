@@ -52,6 +52,26 @@ public static class PairingDecision
     }
 
     /// <summary>
+    /// Whether the plugin's admin configuration currently permits advertising this pairing as a cold-launch
+    /// cast target (issue #668 admin toggles). Two independent gates: the master
+    /// <see cref="Configuration.PluginConfiguration.EnableColdLaunchCasting"/> switch, and — only for a
+    /// sideloaded developer build (<see cref="PairingRecord.IsDev"/>) — the
+    /// <see cref="Configuration.PluginConfiguration.IncludeDevelopmentBuilds"/> filter. A published (non-dev)
+    /// install is gated by the master switch alone. Pure: both config values are injected. The caller composes
+    /// this with <see cref="ShouldPublish"/> AND uses it to skip the live ECP reachability probe when
+    /// publishing is disallowed, so a disabled target is never even probed.
+    /// </summary>
+    /// <param name="record">The pairing to test.</param>
+    /// <param name="coldCastEnabled">The master <c>EnableColdLaunchCasting</c> setting.</param>
+    /// <param name="includeDevBuilds">The <c>IncludeDevelopmentBuilds</c> setting (only relevant to a dev build).</param>
+    /// <returns><c>true</c> if admin config allows advertising this pairing.</returns>
+    public static bool ConfigAllowsPublish(PairingRecord record, bool coldCastEnabled, bool includeDevBuilds)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        return coldCastEnabled && (includeDevBuilds || !record.IsDev);
+    }
+
+    /// <summary>
     /// Whether the phantom cast target should be advertised for a pairing <b>right now</b> (issue #668,
     /// P2). Three conditions, all required: the pairing is <see cref="IsAdvertisable(PairingRecord, DateTime, TimeSpan)"/>
     /// (validated + fresh, the persisted-state gate); the app is <b>not</b> currently open

@@ -19,6 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The dashboard config page (issue #668 admin toggles). Embedded so Plugin.GetPages() can serve it
+         via EmbeddedResourcePath; the resource name must stay "<namespace>.Configuration.configPage.html". -->
+    <EmbeddedResource Include="Configuration\configPage.html" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The test project drives PlaybackReaperService.SweepAsync() directly so the reap wiring is
          verified without waiting on the timer; it stays internal to keep it off the public surface. -->
     <InternalsVisibleTo Include="Jellyfin.Plugin.JellyRock.Tests" />
