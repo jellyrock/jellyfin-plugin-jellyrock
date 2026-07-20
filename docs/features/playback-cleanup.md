@@ -1,16 +1,19 @@
-# Fast closed-app playback cleanup (HTTPS)
+# Fast closed-app playback cleanup
 
 Press **Home** on the Roku mid-playback and the app is torn down instantly, with no chance to tell the
-server it stopped. This feature reaps the lingering session in **~60 seconds** and records an accurate
-resume point. ([JellyRock issue #43](https://github.com/jellyrock/jellyrock/issues/43))
+server it stopped. ([JellyRock issue #43](https://github.com/jellyrock/jellyrock/issues/43))
+
+On an **http** server this already resolves itself with no plugin, within seconds. The plugin **extends
+the same fast cleanup to https** servers, where the close goes unsignalled, reaping the lingering session
+in **~60 seconds** and recording an accurate resume point.
 
 ## Why a plugin is needed on HTTPS
 
-On an **http** server this already resolves itself: JellyRock holds Jellyfin's native session socket, so
-when the app closes the socket drops and the server removes the session within seconds (this is what
-fixed #43 for http, via JellyRock's `ws://` support). On an **https** server Roku can't open that socket
-(no `wss://`), so nothing signals the close and Jellyfin keeps the transcode running with a phantom "now
-playing" until its own idle check reaps it ~5-10 minutes later.
+On an **http** server JellyRock holds Jellyfin's native session socket, so when the app closes the socket
+drops and the server removes the session within seconds (this is what fixed #43 for http, via JellyRock's
+`ws://` support). On an **https** server Roku can't open that socket (no `wss://`), so nothing signals the
+close and Jellyfin keeps the transcode running with a phantom "now playing" until its own idle check reaps
+it ~5-10 minutes later.
 
 ## How it works
 

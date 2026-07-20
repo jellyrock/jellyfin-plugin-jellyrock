@@ -26,18 +26,20 @@ Three independent, server-assisted capabilities for JellyRock:
 - **[Cold-launch cast](docs/features/cold-launch-cast.md)**: cast to a Roku even when JellyRock is
   *closed*. The plugin advertises the closed device as a "Play On" target and wakes it into the item over
   ECP. Works on http and https.
-- **["Play On" remote control](docs/features/remote-control.md)** *(HTTPS)*: makes an *open* JellyRock a
-  Play On / remote-control target on a secure server, where Roku can't open Jellyfin's `wss://` session
-  socket. Bridges commands over a TLS long-poll.
-- **[Fast playback cleanup](docs/features/playback-cleanup.md)** *(HTTPS)*: when you press Home
-  mid-playback, reaps the lingering session in ~60s (instead of Jellyfin's ~5-10 min) and saves an
-  accurate resume point.
+- **["Play On" remote control](docs/features/remote-control.md)**: cast to and control an *open*
+  JellyRock. This already works out of the box on **http** servers (JellyRock uses Jellyfin's native
+  session socket); the plugin **extends it to https** servers, where Roku can't open a secure `wss://`
+  socket, by bridging commands over a TLS long-poll.
+- **[Fast playback cleanup](docs/features/playback-cleanup.md)**: reap a closed app's playback session
+  fast. Already near-instant on **http** with no plugin; the plugin **extends the same cleanup to https**,
+  reaping the lingering session in ~60s (instead of Jellyfin's ~5-10 min) with an accurate resume point.
 
 ## Do I need it?
 
-- **Cold-launch cast** works on any server (http or https) that shares your Roku's LAN.
-- **Remote control** and **playback cleanup** only do something on **HTTPS** servers. On plain http,
-  JellyRock uses Jellyfin's native session socket directly, so neither needs a plugin.
+- **Cold-launch cast** needs the plugin on any server (http or https) that shares your Roku's LAN.
+- **Remote control** and **playback cleanup** already work on **http** with no plugin (JellyRock uses
+  Jellyfin's native session socket). Install the plugin for these two only if your server is **https**,
+  where Roku can't open that socket and the plugin fills the gap.
 
 ## Settings
 

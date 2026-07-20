@@ -1,14 +1,18 @@
-# "Play On" remote control (HTTPS)
+# "Play On" remote control
 
-Makes an **open** JellyRock a remote-control **"Play On"** target on an **HTTPS** server, and lets you
-play / pause / seek it from the Jellyfin web or mobile app. ([JellyRock issue #667](https://github.com/jellyrock/jellyrock/issues/667))
+Cast to and control an **open** JellyRock: play / pause / seek from the Jellyfin web or mobile app.
+([JellyRock issue #667](https://github.com/jellyrock/jellyrock/issues/667))
+
+This already works out of the box on **http** servers, where JellyRock opens Jellyfin's native session
+socket directly. The plugin **extends it to https** servers, where Roku can't open a secure socket, so
+you get the same Play On regardless of your server's scheme.
 
 ## Why a plugin is needed on HTTPS
 
 Jellyfin pushes remote-control commands (`Play` / `Playstate` / `GeneralCommand`) to a session over a
 **WebSocket**. Roku has no socket TLS (no `wss://`), so on a secure server JellyRock can't receive them
-that way. On a **plain-http** server this feature needs no plugin (JellyRock opens Jellyfin's native
-session socket directly, shipped in [JellyRock #666](https://github.com/jellyrock/jellyrock/issues/666)), so the plugin only does something on
+that way. On a **plain-http** server this feature needs no plugin: JellyRock opens Jellyfin's native
+session socket directly (shipped in [JellyRock #666](https://github.com/jellyrock/jellyrock/issues/666)). The plugin only fills the gap on
 https / remote servers.
 
 ## How it works
