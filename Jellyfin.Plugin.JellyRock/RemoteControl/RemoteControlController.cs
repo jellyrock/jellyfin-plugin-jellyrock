@@ -130,6 +130,16 @@ public class RemoteControlController : ControllerBase
     /// to find one the server can reach, and the validated pairing is persisted. Fire-and-forget on the
     /// client side, so the response body is only a courtesy status.
     /// </summary>
+    /// <remarks>
+    /// Contract note: <c>/pair</c> is intentionally version-FREE, unlike <c>/info</c>+<c>/poll</c> which
+    /// carry <see cref="ContractVersion"/>. It is a registration, not a command, so its cross-version
+    /// safety is THIS HTTP status contract, not a version field. A BREAKING change to the request shape
+    /// MUST reject older clients with 400 (or move the route so they 404). NEVER silently reinterpret a
+    /// field: the client is fire-and-forget and never reads this response, so a misparse would fire an
+    /// ECP wake at a wrong or garbage target with no signal. Additive changes stay safe, since unknown
+    /// request fields are ignored on deserialize and identity is auth-claim-bound. Mirrors the
+    /// client-side note in JellyRock's remoteProtocol.bs and docs/architecture/remote-control.md.
+    /// </remarks>
     /// <param name="request">The pairing report body (addresses + app identity).</param>
     /// <param name="cancellationToken">Request cancellation (client disconnect).</param>
     /// <returns>200 with the validation status, or an error status.</returns>
