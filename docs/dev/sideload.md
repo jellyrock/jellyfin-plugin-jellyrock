@@ -12,7 +12,7 @@ path from the running container rather than guessing:
 docker exec <jellyfin-container> sh -c 'find /config -maxdepth 3 -type d -name plugins'
 ```
 
-Then, from a machine with the built DLL (see [README → Build](../../README.md#build)) and SSH+Docker
+Then, from a machine with the built DLL (see [Build](README.md#build)) and SSH+Docker
 access to the server:
 
 ```bash

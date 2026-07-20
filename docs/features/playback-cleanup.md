@@ -16,7 +16,7 @@ playing" until its own idle check reaps it ~5-10 minutes later.
 
 A lightweight background sweep watches JellyRock sessions. When one is actively playing but its playback
 check-ins (the client's ~10s `Sessions/Playing/Progress` reports) have gone silent past a 60-second
-threshold, it stops the session the same way Jellyfin's own idle reaper does — just on a faster clock.
+threshold, it stops the session the same way Jellyfin's own idle reaper does, just on a faster clock.
 
 It records the resume point at the **last confirmed check-in** position rather than Jellyfin's
 forward-extrapolated one, so resuming later lands where you actually stopped instead of skipping ahead.
@@ -24,6 +24,6 @@ Paused sessions are left untouched (Jellyfin's own paused/idle handling covers t
 
 ## Requirements
 
-An **HTTPS** Jellyfin server (10.11+) and JellyRock **v1.15.0 or newer** — the release that moved
+An **HTTPS** Jellyfin server (10.11+) and JellyRock **v1.15.0 or newer**, the release that moved
 playback progress reporting to a ~10s cadence, which the cleanup relies on to detect a closed app safely.
 On older clients the plugin does nothing and Jellyfin's default idle handling applies (unchanged).

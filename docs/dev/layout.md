@@ -28,7 +28,7 @@ Jellyfin.Plugin.JellyRock/
     ReapDecision.cs                   # pure reap-eligibility rule + resume-position correction (cleanup)
     PhantomSessionService.cs          # publishes/revokes the closed-app cast phantom (cold-launch cast, #668)
     PhantomSessionController.cs       # fires the ECP /launch wake for a phantom (cold-launch cast)
-    PairingValidationService.cs       # ECP reachability probe — the LAN-local validation gate (cold-launch cast)
+    PairingValidationService.cs       # ECP reachability probe, the LAN-local validation gate (cold-launch cast)
     PairingDecision.cs                # pure freshness / advertisability / config-gate rules (cold-launch cast)
     PairingStore.cs / PairingRecord.cs / PairRequest.cs   # pairing persistence + wire shapes (cold-launch cast)
 Jellyfin.Plugin.JellyRock.Tests/      # xUnit tests (queue / liveness / serialization / reaper / pairing / config)

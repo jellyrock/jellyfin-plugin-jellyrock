@@ -7,8 +7,8 @@ play / pause / seek it from the Jellyfin web or mobile app. ([JellyRock issue #6
 
 Jellyfin pushes remote-control commands (`Play` / `Playstate` / `GeneralCommand`) to a session over a
 **WebSocket**. Roku has no socket TLS (no `wss://`), so on a secure server JellyRock can't receive them
-that way. On a **plain-http** server this feature needs no plugin — JellyRock opens Jellyfin's native
-session socket directly (shipped in [JellyRock #666](https://github.com/jellyrock/jellyrock/issues/666)) — so the plugin only does something on
+that way. On a **plain-http** server this feature needs no plugin (JellyRock opens Jellyfin's native
+session socket directly, shipped in [JellyRock #666](https://github.com/jellyrock/jellyrock/issues/666)), so the plugin only does something on
 https / remote servers.
 
 ## How it works
@@ -20,7 +20,7 @@ https / remote servers.
    JellyRock consumes over TLS with `roUrlTransfer`, no `wss://` required.
 3. **Closed-app hygiene:** the session is advertised as a cast target only while JellyRock is actively
    polling. When the app closes (or the poll loop dies), the liveness window lapses and Jellyfin's next
-   cast-list query drops JellyRock automatically — no stale target left behind.
+   cast-list query drops JellyRock automatically, no stale target left behind.
 
 ## Wire contract
 
