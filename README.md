@@ -58,8 +58,8 @@ The remote-control and playback-cleanup features have no settings.
   10.11.0 API floor (`Jellyfin.Controller` / `Jellyfin.Model` and `targetAbi` are pinned there). Servers
   on 10.9/10.10 stay on the last `net8` / 10.9-ABI release (0.2.x) and are simply not offered newer
   versions. See [ADR 0023](https://github.com/jellyrock/jellyrock/blob/main/docs/adr/0023-cold-launch-cast-producer.md).
-- **JellyRock on your Roku:** v2.23.0+ for cold-launch cast and remote control; v1.15.0+ for playback
-  cleanup. Older clients fall back to Jellyfin's default behavior.
+- **JellyRock on your Roku:** v2.24.0+ for cold-launch cast; v2.23.0+ for remote control; v1.15.0+ for
+  playback cleanup. Older clients fall back to Jellyfin's default behavior.
 
 ## Development
 

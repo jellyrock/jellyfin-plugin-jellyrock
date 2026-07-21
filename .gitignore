@@ -6,3 +6,6 @@ publish/
 # Release build outputs (jprm packages, gh-pages worktree)
 dist/
 pages/
+
+# Ad-hoc local `dotnet publish` output
+coldcast-publish/

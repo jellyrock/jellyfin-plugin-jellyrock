@@ -46,4 +46,4 @@ refresh with no re-pair.
 
 ## Requirements
 
-Jellyfin **10.11 or newer** and JellyRock **v2.23.0 or newer**, with the server sharing your Roku's LAN.
+Jellyfin **10.11 or newer** and JellyRock **v2.24.0 or newer**, with the server sharing your Roku's LAN.
