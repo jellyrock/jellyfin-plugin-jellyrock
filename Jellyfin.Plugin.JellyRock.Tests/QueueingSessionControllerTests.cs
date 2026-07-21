@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -65,7 +66,7 @@ public class QueueingSessionControllerTests
 
         await controller.SendMessage(SessionMessageType.Playstate, id, new { Command = SampleVerb.Pause }, CancellationToken.None);
 
-        var batch = await controller.DequeueBatchAsync(1000, CancellationToken.None);
+        var batch = await controller.DequeueBatchAsync(1000, ackMode: false, Guid.Empty, CancellationToken.None);
 
         var envelope = Assert.Single(batch);
         Assert.Equal("Playstate", envelope.MessageType);
@@ -81,7 +82,7 @@ public class QueueingSessionControllerTests
 
         await controller.SendMessage(SessionMessageType.Playstate, Guid.NewGuid(), new { Command = SampleVerb.Pause }, CancellationToken.None);
 
-        var batch = await controller.DequeueBatchAsync(1000, CancellationToken.None);
+        var batch = await controller.DequeueBatchAsync(1000, ackMode: false, Guid.Empty, CancellationToken.None);
         var command = Data(Assert.Single(batch)).GetProperty("Command");
 
         Assert.Equal("Pause", command.GetString());
@@ -96,7 +97,7 @@ public class QueueingSessionControllerTests
 
         await controller.SendMessage(type, Guid.NewGuid(), "60", CancellationToken.None);
 
-        var batch = await controller.DequeueBatchAsync(50, CancellationToken.None);
+        var batch = await controller.DequeueBatchAsync(50, ackMode: false, Guid.Empty, CancellationToken.None);
         Assert.Empty(batch);
     }
 
@@ -109,7 +110,7 @@ public class QueueingSessionControllerTests
         await controller.SendMessage(SessionMessageType.GeneralCommand, Guid.NewGuid(), new { Name = "GoToSearch" }, CancellationToken.None);
         await controller.SendMessage(SessionMessageType.GeneralCommand, Guid.NewGuid(), new { Name = "GoToSettings" }, CancellationToken.None);
 
-        var batch = await controller.DequeueBatchAsync(1000, CancellationToken.None);
+        var batch = await controller.DequeueBatchAsync(1000, ackMode: false, Guid.Empty, CancellationToken.None);
 
         Assert.Equal(
             new[] { "GoHome", "GoToSearch", "GoToSettings" },
@@ -123,7 +124,7 @@ public class QueueingSessionControllerTests
     {
         var controller = new QueueingSessionController();
 
-        var batch = await controller.DequeueBatchAsync(50, CancellationToken.None);
+        var batch = await controller.DequeueBatchAsync(50, ackMode: false, Guid.Empty, CancellationToken.None);
 
         Assert.Empty(batch);
     }
@@ -135,8 +136,8 @@ public class QueueingSessionControllerTests
         // channel invariant. Both wait; one write must be delivered by exactly one of them.
         var controller = new QueueingSessionController();
 
-        var pollA = controller.DequeueBatchAsync(2000, CancellationToken.None);
-        var pollB = controller.DequeueBatchAsync(2000, CancellationToken.None);
+        var pollA = controller.DequeueBatchAsync(2000, ackMode: false, Guid.Empty, CancellationToken.None);
+        var pollB = controller.DequeueBatchAsync(2000, ackMode: false, Guid.Empty, CancellationToken.None);
 
         await Task.Delay(30); // let both park in WaitToReadAsync
         await controller.SendMessage(SessionMessageType.Play, Guid.NewGuid(), new { PlayCommand = "PlayNow" }, CancellationToken.None);
@@ -146,5 +147,130 @@ public class QueueingSessionControllerTests
         var delivered = results.SelectMany(r => r).ToList();
         Assert.Single(delivered);
         Assert.Equal("Play", delivered[0].MessageType);
+    }
+
+    // --- Opt-in at-least-once (ackMode) ---------------------------------------------------------
+
+    private static async Task<Guid> Enqueue(QueueingSessionController controller, string name)
+    {
+        var id = Guid.NewGuid();
+        await controller.SendMessage(SessionMessageType.GeneralCommand, id, new { Name = name }, CancellationToken.None);
+        return id;
+    }
+
+    private static async Task<IReadOnlyList<CommandEnvelope>> AckPoll(QueueingSessionController controller, Guid ackId, int waitMs = 1000)
+        => await controller.DequeueBatchAsync(waitMs, ackMode: true, ackId, CancellationToken.None);
+
+    [Fact]
+    public async Task Legacy_DropsBatchAfterDelivery_AtMostOnce()
+    {
+        // The baseline this feature moves away from: a legacy (non-ack) poll removes the batch, so a
+        // second poll — the client's retry after a lost response — gets nothing.
+        var controller = new QueueingSessionController();
+        await Enqueue(controller, "GoHome");
+
+        var first = await controller.DequeueBatchAsync(1000, ackMode: false, Guid.Empty, CancellationToken.None);
+        var second = await controller.DequeueBatchAsync(50, ackMode: false, Guid.Empty, CancellationToken.None);
+
+        Assert.Single(first);
+        Assert.Empty(second);
+    }
+
+    [Fact]
+    public async Task AckMode_RedeliversUnackedBatch_WhenNextPollDoesNotAck()
+    {
+        // The fix: a poll whose response was lost (client never acked) redelivers on the next poll.
+        var controller = new QueueingSessionController();
+        var id = await Enqueue(controller, "GoHome");
+
+        var first = await AckPoll(controller, Guid.Empty);
+        var redelivered = await AckPoll(controller, Guid.Empty); // no ack -> same batch again
+
+        Assert.Equal(id, Assert.Single(first).MessageId);
+        Assert.Equal(id, Assert.Single(redelivered).MessageId);
+    }
+
+    [Fact]
+    public async Task AckMode_PrunesAckedBatch_ThenDeliversOnlyNew()
+    {
+        // Happy path: the client acks what it got, so it is not redelivered; only new commands follow.
+        var controller = new QueueingSessionController();
+        var a = await Enqueue(controller, "GoHome");
+
+        var first = await AckPoll(controller, Guid.Empty);
+        Assert.Equal(a, Assert.Single(first).MessageId);
+
+        var b = await Enqueue(controller, "GoToSearch");
+        var second = await AckPoll(controller, a); // ack A
+
+        Assert.Equal(b, Assert.Single(second).MessageId);
+    }
+
+    [Fact]
+    public async Task AckMode_CumulativeAck_PrunesThrough_AndPreservesOrder()
+    {
+        var controller = new QueueingSessionController();
+        var a = await Enqueue(controller, "GoHome");
+        var b = await Enqueue(controller, "GoToSearch");
+        var c = await Enqueue(controller, "GoToSettings");
+
+        var first = await AckPoll(controller, Guid.Empty);
+        Assert.Equal(new[] { a, b, c }, first.Select(e => e.MessageId));
+
+        // Ack the middle id -> A and B drop, C survives and redelivers.
+        var second = await AckPoll(controller, b);
+        Assert.Equal(c, Assert.Single(second).MessageId);
+    }
+
+    [Fact]
+    public async Task AckMode_UnknownOrStaleAckId_PrunesNothing()
+    {
+        var controller = new QueueingSessionController();
+        var id = await Enqueue(controller, "GoHome");
+
+        await AckPoll(controller, Guid.Empty);
+        var redelivered = await AckPoll(controller, Guid.NewGuid()); // an id we never sent
+
+        Assert.Equal(id, Assert.Single(redelivered).MessageId);
+    }
+
+    [Fact]
+    public async Task AckMode_AcksEverything_ThenHoldsEmpty()
+    {
+        var controller = new QueueingSessionController();
+        var id = await Enqueue(controller, "GoHome");
+
+        await AckPoll(controller, Guid.Empty);
+        var empty = await AckPoll(controller, id, waitMs: 50); // acked -> nothing left, short hold
+
+        Assert.Empty(empty);
+    }
+
+    [Fact]
+    public async Task AckMode_BoundsUnackedBuffer_DroppingOldestAcrossDrains()
+    {
+        // An ack-capable client that keeps receiving but never acks must not grow the buffer without
+        // bound. Two un-acked drains of 150 accumulate to 300, then keep only the newest 256.
+        var controller = new QueueingSessionController();
+
+        var firstIds = new List<Guid>();
+        for (var i = 0; i < 150; i++)
+        {
+            firstIds.Add(await Enqueue(controller, "c" + i.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        }
+
+        await AckPoll(controller, Guid.Empty); // received, not acked
+
+        var secondIds = new List<Guid>();
+        for (var i = 0; i < 150; i++)
+        {
+            secondIds.Add(await Enqueue(controller, "d" + i.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        }
+
+        var batch = await AckPoll(controller, Guid.Empty); // still no ack -> drain + accumulate + cap
+
+        Assert.Equal(256, batch.Count);
+        Assert.Equal(secondIds[^1], batch[^1].MessageId);      // newest is kept
+        Assert.DoesNotContain(firstIds[0], batch.Select(e => e.MessageId)); // oldest is dropped
     }
 }

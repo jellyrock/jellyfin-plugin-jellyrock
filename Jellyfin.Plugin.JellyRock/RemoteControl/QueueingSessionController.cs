@@ -53,6 +53,16 @@ public sealed class QueueingSessionController : ISessionController
             FullMode = BoundedChannelFullMode.DropOldest
         });
 
+    // At-least-once (contract v1, opt-in): commands drained for an ack-capable client are held here —
+    // delivered-but-unacked — instead of being dropped, so a poll whose response is lost redelivers
+    // them on the next poll (keyed by the client's cumulative ackId). Guarded by _ackGate because,
+    // unlike the lock-free channel, this ordered buffer is read-modify-written per poll and two
+    // overlapping polls must see it consistently. Capped like the channel: an ack-capable client that
+    // receives but never acks is buggy/gone, so DropOldest (keep NEWEST) bounds the memory. Legacy
+    // (non-ack) clients never touch this buffer — their path stays exactly the at-most-once drain.
+    private readonly object _ackGate = new();
+    private readonly List<CommandEnvelope> _unacked = new();
+
     // UtcNow.Ticks after which this controller is stale. 0 (never polled) reads as stale, so a session
     // is never advertised as controllable before it actually polls. Stored as a single value (not
     // lastPoll + grace separately) so a concurrent read can't observe a torn lastPoll/grace pair.
@@ -113,15 +123,75 @@ public sealed class QueueingSessionController : ISessionController
     /// <paramref name="waitMs"/> for the first command, then drains everything available. An empty
     /// result means the hold window elapsed with nothing queued (the endpoint returns 204).
     ///
-    /// <para>At-most-once in v1: a returned batch is removed from the queue before the response body
-    /// is written, so a client that disconnects between drain and delivery loses that batch (the
-    /// user re-issues). The reserved <see cref="CommandEnvelope.MessageId"/> is the hook for a future
-    /// at-least-once ack — see the wire contract.</para>
+    /// <para>Delivery guarantee is chosen by <paramref name="ackMode"/>, an additive, opt-in extension
+    /// of contract v1 (see the wire contract):</para>
+    /// <list type="bullet">
+    /// <item><description><b>Legacy (<c>ackMode=false</c>) — at-most-once.</b> The batch is removed from
+    /// the queue before the response body is written, so a client that disconnects between drain and
+    /// delivery loses that batch (the user re-issues). This is exactly the pre-ack behavior; a client
+    /// that doesn't send the ack signal keeps it, so a new plugin never regresses an old client.</description></item>
+    /// <item><description><b>Ack-capable (<c>ackMode=true</c>) — at-least-once.</b> First the buffer is
+    /// pruned through the client's cumulative <paramref name="ackId"/> ("I durably received through this
+    /// <see cref="CommandEnvelope.MessageId"/>"); then newly-queued commands are appended; then the whole
+    /// unacked buffer is returned — so anything the client hasn't confirmed is <em>redelivered</em> on the
+    /// next poll. A lost response therefore self-heals. The client must dedupe by <c>MessageId</c> (a
+    /// redelivered relative verb like <c>NextTrack</c> would otherwise double-apply) — see the contract.</description></item>
+    /// </list>
     /// </summary>
     /// <param name="waitMs">Maximum hold time in milliseconds.</param>
+    /// <param name="ackMode">True if the caller is ack-capable (retain + redeliver until acked); false for the legacy at-most-once drain.</param>
+    /// <param name="ackId">The client's cumulative ack — every command up to and including this <see cref="CommandEnvelope.MessageId"/> may be dropped. <see cref="Guid.Empty"/> acks nothing (e.g. the first poll). Ignored when <paramref name="ackMode"/> is false.</param>
     /// <param name="cancellationToken">Cancellation (e.g. the client disconnecting).</param>
     /// <returns>The commands to deliver, in FIFO order (possibly empty).</returns>
-    public async Task<IReadOnlyList<CommandEnvelope>> DequeueBatchAsync(int waitMs, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CommandEnvelope>> DequeueBatchAsync(int waitMs, bool ackMode, Guid ackId, CancellationToken cancellationToken)
+    {
+        if (!ackMode)
+        {
+            return await DequeueLegacyAsync(waitMs, cancellationToken).ConfigureAwait(false);
+        }
+
+        // Prune what the client confirmed, then absorb anything newly queued. If the unacked buffer is
+        // non-empty (leftover redelivery and/or fresh commands) we return immediately — redelivery must
+        // not be held for waitMs.
+        lock (_ackGate)
+        {
+            PruneAcked(ackId);
+            DrainChannelInto(_unacked);
+            if (_unacked.Count > 0)
+            {
+                return _unacked.ToArray();
+            }
+        }
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(waitMs);
+        try
+        {
+            if (await _queue.Reader.WaitToReadAsync(cts.Token).ConfigureAwait(false))
+            {
+                lock (_ackGate)
+                {
+                    DrainChannelInto(_unacked);
+                    return _unacked.ToArray();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Hold window elapsed (or client disconnected) with nothing queued.
+        }
+
+        // Empty hold, or a concurrent poll drained the wake for us: return the current unacked snapshot
+        // (still empty unless that concurrent poll added to it).
+        lock (_ackGate)
+        {
+            return _unacked.ToArray();
+        }
+    }
+
+    // Legacy at-most-once drain — byte-for-byte the pre-ack behavior, so a client that never opts into
+    // acking is unaffected by a plugin that supports it.
+    private async Task<IReadOnlyList<CommandEnvelope>> DequeueLegacyAsync(int waitMs, CancellationToken cancellationToken)
     {
         var batch = new List<CommandEnvelope>();
         while (_queue.Reader.TryRead(out var queued))
@@ -152,6 +222,39 @@ public sealed class QueueingSessionController : ISessionController
         }
 
         return batch;
+    }
+
+    // Cumulative ack: drop everything from the front of the ordered buffer up to AND INCLUDING the
+    // command whose MessageId matches ackId. Guid.Empty (nothing to ack) and an id no longer present
+    // (already pruned, or a stale/duplicate ack) both prune nothing. Caller holds _ackGate.
+    private void PruneAcked(Guid ackId)
+    {
+        if (ackId == Guid.Empty || _unacked.Count == 0)
+        {
+            return;
+        }
+
+        var through = _unacked.FindIndex(e => e.MessageId == ackId);
+        if (through >= 0)
+        {
+            _unacked.RemoveRange(0, through + 1);
+        }
+    }
+
+    // Move everything currently queued into the ordered unacked buffer, then bound it: an ack-capable
+    // client that keeps receiving but never acks would otherwise grow it without limit, so keep only the
+    // NEWEST QueueCapacity (same DropOldest tradeoff the channel makes). Caller holds _ackGate.
+    private void DrainChannelInto(List<CommandEnvelope> buffer)
+    {
+        while (_queue.Reader.TryRead(out var queued))
+        {
+            buffer.Add(queued);
+        }
+
+        if (buffer.Count > QueueCapacity)
+        {
+            buffer.RemoveRange(0, buffer.Count - QueueCapacity);
+        }
     }
 
     private bool IsPollFresh() => DateTime.UtcNow.Ticks < Interlocked.Read(ref _freshUntilTicks);

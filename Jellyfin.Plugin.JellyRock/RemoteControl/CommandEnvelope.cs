@@ -24,8 +24,11 @@ public sealed class CommandEnvelope
     public object? Data { get; init; }
 
     /// <summary>
-    /// Gets the server-assigned message id. Reserved for a future at-least-once ack; the client does
-    /// not ack in contract v1.
+    /// Gets the server-assigned message id — the ack key for the opt-in at-least-once delivery
+    /// (contract v1). An ack-capable client echoes the last id it durably received back as the poll's
+    /// cumulative <c>ackId</c>, which lets the plugin drop confirmed commands and redeliver the rest;
+    /// the client also dedupes by this id. A legacy client ignores it (at-most-once). See
+    /// <see cref="QueueingSessionController.DequeueBatchAsync"/> and the wire contract.
     /// </summary>
     public Guid MessageId { get; init; }
 }
