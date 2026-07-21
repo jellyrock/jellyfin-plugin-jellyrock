@@ -42,12 +42,14 @@ tmp="$(mktemp)"
 CL_SECTION="$section" awk '
   !done && /^## \[Unreleased\]/ {
     print "## [Unreleased]"
-    if (ENVIRON["CL_SECTION"] != "") { print ""; printf "%s", ENVIRON["CL_SECTION"] }
-    print ""                 # exactly one blank line before the next heading
+    # print (not printf) adds the trailing newline that $(...) strips off $section,
+    # so the last bullet line is terminated; the blank line before the next heading
+    # is emitted by the resume rule below (mirrors set-version.sh).
+    if (ENVIRON["CL_SECTION"] != "") { print ""; print ENVIRON["CL_SECTION"] }
     done=1; skip=1; next
   }
-  skip && /^## / { skip=0 }   # reached the next version heading — resume printing it
-  skip { next }               # drop the stale [Unreleased] body in between
+  skip && /^## / { skip=0; print "" }   # next version heading — one blank line, then resume
+  skip { next }                          # drop the stale [Unreleased] body in between
   { print }
 ' "$changelog" > "$tmp"
 mv "$tmp" "$changelog"
