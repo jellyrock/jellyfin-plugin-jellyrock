@@ -54,6 +54,10 @@ jobs:
           git config user.email "${APP_USER_ID}+jellyrock[bot]@users.noreply.github.com"
 
       - name: Sync [Unreleased] from merged PRs
+        # GH_TOKEN lets changelog-gen.sh resolve merge-commit PR titles via `gh`
+        # (no-op for squash/direct commits, which carry their title already).
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: ./scripts/changelog-sync-unreleased.sh
 
       # Guard: never let the bot commit a structurally broken changelog.

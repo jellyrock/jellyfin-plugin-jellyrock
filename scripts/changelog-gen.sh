@@ -3,7 +3,12 @@
 # release tag — the same idea as the JellyRock app's changelog-syncer, in bash so
 # this .NET repo needs no Node toolchain.
 #
-# PRs are squash-merged, so each first-parent commit subject on main IS the PR title.
+# Every first-parent commit on main is one changelog candidate, regardless of how
+# it landed (parity with the reference — see the merge handling below):
+#   - squash merge / direct commit -> the commit subject IS the PR/change title
+#   - merge-commit PR ("Merge pull request #N from …") -> the subject is resolved
+#     to the PR title via `gh` so it yields the same entry a squash would have
+#   - other "Merge …" commits (branch/pull-through merges) -> dropped as noise
 # Conventional-commit types map to sections and the type prefix is stripped:
 #   feat                  -> Added
 #   fix                   -> Fixed
@@ -11,6 +16,9 @@
 #   chore|ci|build|test|style|docs -> skipped (housekeeping, not user-facing)
 #   anything else         -> Changed  (never silently drop a real change)
 # A trailing "(#123)" PR ref becomes a markdown link to the PR.
+#
+# Resolving merge-commit PRs needs `gh` authenticated (GH_TOKEN in CI); it is only
+# invoked for "Merge pull request" subjects, so squash-only history never calls it.
 #
 # Prints the section body (### headings + bullets) to stdout; writes no files. Empty
 # output means nothing user-facing landed since the tag (the caller decides what to do).
@@ -28,13 +36,30 @@ range="HEAD"
 slug="$(git -C "$root" config --get remote.origin.url \
         | sed -E 's#^(git@github.com:|https?://github.com/)##; s#\.git$##')"
 
+merge_pr_re='^Merge pull request #([0-9]+) from (.+)$'
+
 added=""; changed=""; fixed=""
 while IFS= read -r subject; do
   [[ -n "$subject" ]] || continue
+
+  # Normalize merge commits so a merge-commit PR produces the same entry a squash
+  # or direct commit would. A squash/direct subject already IS the title, so it
+  # falls straight through this block untouched.
+  if [[ "$subject" =~ $merge_pr_re ]]; then
+    prnum="${BASH_REMATCH[1]}"; src="${BASH_REMATCH[2]}"
+    # Release-prep merges (the release-x.y.z branch) aren't a user-facing change.
+    case "$src" in */release-*|release-*) continue ;; esac
+    # Resolve the PR title; categorize/link it exactly like a squash subject.
+    title="$(gh pr view "$prnum" --repo "$slug" --json title --jq .title 2>/dev/null || true)"
+    subject="${title:-Merged PR} (#${prnum})"
+  elif [[ "$subject" == Merge\ * ]]; then
+    continue   # "Merge branch '…'", "Merge remote-tracking …" — merge noise, not a change
+  fi
+
   # Leading token, lowercased: the conventional-commit type (or the first word).
   type="$(printf '%s' "$subject" | sed -E 's/^([A-Za-z]+).*/\1/' | tr '[:upper:]' '[:lower:]')"
   case "$type" in
-    chore|ci|build|test|style|docs|merge) continue ;;
+    chore|ci|build|test|style|docs) continue ;;
   esac
   # Strip a conventional prefix "type(scope)!:" if present; leave prefix-less titles as-is.
   text="$(printf '%s' "$subject" | sed -E 's/^[A-Za-z]+(\([^)]+\))?!?:[[:space:]]*//')"
@@ -45,7 +70,9 @@ while IFS= read -r subject; do
     fix)  fixed+="- ${text}"$'\n' ;;
     *)    changed+="- ${text}"$'\n' ;;
   esac
-done < <(git -C "$root" log --first-parent --no-merges --pretty=%s "$range")
+# --first-parent WITHOUT --no-merges: one entry per landed change (squash, direct,
+# or merge commit), never descending into a merged branch's individual commits.
+done < <(git -C "$root" log --first-parent --pretty=%s "$range")
 
 first=1
 emit() { # $1 heading, $2 body

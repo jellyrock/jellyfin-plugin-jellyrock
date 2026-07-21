@@ -71,6 +71,10 @@ jobs:
           git config user.email "${APP_USER_ID}+jellyrock[bot]@users.noreply.github.com"
 
       - name: Bump version + roll changelog
+        # GH_TOKEN lets set-version.sh -> changelog-gen.sh resolve merge-commit PR
+        # titles via `gh` when rolling the release section.
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           # Idempotent: if the branch is already prepared (a dated CHANGELOG section
           # exists — e.g. this run was triggered by our own bump push), do nothing.
