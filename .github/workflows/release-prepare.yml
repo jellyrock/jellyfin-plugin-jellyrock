@@ -74,7 +74,8 @@ jobs:
         run: |
           # Idempotent: if the branch is already prepared (a dated CHANGELOG section
           # exists — e.g. this run was triggered by our own bump push), do nothing.
-          if grep -qE "^## \[$VERSION\] - " CHANGELOG.md; then
+          # The optional (…) tolerates the compare-URL in the dated heading.
+          if grep -qE "^## \[$VERSION\](\([^)]*\))? - " CHANGELOG.md; then
             echo "✅ $VERSION already prepared on $BRANCH — nothing to bump."
             exit 0
           fi

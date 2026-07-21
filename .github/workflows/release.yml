@@ -57,7 +57,7 @@ jobs:
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             echo "release=false" >> "$GITHUB_OUTPUT"
             echo "ℹ️ $TAG already exists — nothing to release."
-          elif ! grep -qE "^## \[$VERSION\] - " CHANGELOG.md; then
+          elif ! grep -qE "^## \[$VERSION\](\([^)]*\))? - " CHANGELOG.md; then
             # A version is releasable only once its CHANGELOG section is DATED, which
             # only the release-prepare workflow does. This makes ordinary merges that
             # touch build.yaml (and the initial infra merge) inert — a version ships

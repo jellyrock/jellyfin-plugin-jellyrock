@@ -10,11 +10,11 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-07-16
+## [0.2.0](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.1.2...v0.2.0) - 2026-07-16
 
 - reap idle JellyRock playback sessions on HTTPS servers ([#7](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/7))
 
-## [0.1.2] - 2026-07-15
+## [0.1.2](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.1.1...v0.1.2) - 2026-07-15
 
 ### Changed
 
@@ -22,7 +22,7 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
   Charles Ewert, and added the JellyRock icon. Documented that the plugin requires
   JellyRock v2.23.0 or newer (the release that added HTTPS remote-control support).
 
-## [0.1.1] - 2026-07-15
+## [0.1.1](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.1.0...v0.1.1) - 2026-07-15
 
 ### Added
 
@@ -37,7 +37,7 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 - Install: the primary path is now the Jellyfin Dashboard plugin repository; the
   manual `scp`/`docker cp` sideload is kept as a developer note.
 
-## [0.1.0] - 2026-07-14
+## [0.1.0](https://github.com/jellyrock/jellyfin-plugin-jellyrock/releases/tag/v0.1.0) - 2026-07-14
 
 ### Added
 

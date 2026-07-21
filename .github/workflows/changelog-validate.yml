@@ -1,0 +1,33 @@
+name: Changelog Validate
+
+# Structural check for CHANGELOG.md — the invariants set-version.sh, the per-merge
+# sync, changelog-extract.sh, and release.yml's dated-section gate all rely on.
+# Lives in its own workflow because ci.yml intentionally ignores '**/*.md', so a
+# job added there would never run on a changelog-only change. Pure bash, no
+# toolchain, no token — fast enough to gate every PR.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - CHANGELOG.md
+      - scripts/changelog-*.sh
+      - .github/workflows/changelog-validate.yml
+  push:
+    branches: [main]
+    paths:
+      - CHANGELOG.md
+      - scripts/changelog-*.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate changelog structure
+        run: ./scripts/changelog-validate.sh

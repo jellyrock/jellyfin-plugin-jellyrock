@@ -12,7 +12,7 @@
 # Writes:
 #   Directory.Build.props              <Version>/<AssemblyVersion>/<FileVersion> = x.y.z.0
 #   Jellyfin.Plugin.JellyRock/build.yaml   version: "x.y.z.0"
-#   CHANGELOG.md                       [Unreleased] -> [x.y.z] - DATE
+#   CHANGELOG.md                       [Unreleased] -> [x.y.z](compare-url) - DATE
 set -euo pipefail
 source "${BASH_SOURCE%/*}/lib-version.sh"
 
@@ -52,16 +52,34 @@ if [[ -z "$section" && "${FORCE:-}" != "1" ]]; then
   exit 1
 fi
 
-# Insert '## [x.y.z] - DATE' + the generated section directly under '## [Unreleased]',
-# dropping any stale [Unreleased] body (it is auto-generated now, never hand-written).
+# Compare URL for the dated heading (Keep-a-Changelog convention): link this
+# version to the diff against its predecessor tag, or — for the very first
+# release — to the tag page. The v$ver tag doesn't exist yet (release.yml creates
+# it on merge), so the predecessor is simply the highest tag that currently exists.
+slug="$(git -C "$root" config --get remote.origin.url \
+        | sed -E 's#^(git@github.com:|https?://github.com/)##; s#\.git$##')"
+prev_tag=""
+while IFS= read -r t; do
+  [[ -n "$t" ]] || continue
+  if "${BASH_SOURCE%/*}/version-gt.sh" "$ver" "${t#v}"; then prev_tag="$t"; break; fi
+done < <(git -C "$root" tag --list 'v*.*.*' --sort=-v:refname)
+if [[ -n "$prev_tag" ]]; then
+  heading_url="https://github.com/${slug}/compare/${prev_tag}...v${ver}"
+else
+  heading_url="https://github.com/${slug}/releases/tag/v${ver}"
+fi
+
+# Insert '## [x.y.z](compare-url) - DATE' + the generated section directly under
+# '## [Unreleased]', dropping any stale [Unreleased] body (it is auto-generated
+# per-merge by changelog-sync-unreleased.sh now, never hand-written).
 tmp="$(mktemp)"
-CL_VER="$ver" CL_DATE="$date" CL_SECTION="$section" awk '
+CL_VER="$ver" CL_DATE="$date" CL_URL="$heading_url" CL_SECTION="$section" awk '
   skip && /^## \[/ { skip=0; print "" }   # previous release heading — resume, one blank before it
   skip { next }                           # drop the old [Unreleased] body in between
   !done && /^## \[Unreleased\]/ {
     print "## [Unreleased]"
     print ""
-    print "## [" ENVIRON["CL_VER"] "] - " ENVIRON["CL_DATE"]
+    print "## [" ENVIRON["CL_VER"] "](" ENVIRON["CL_URL"] ") - " ENVIRON["CL_DATE"]
     if (ENVIRON["CL_SECTION"] != "") {
       print ""
       printf "%s", ENVIRON["CL_SECTION"]

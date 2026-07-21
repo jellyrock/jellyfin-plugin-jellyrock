@@ -1,0 +1,74 @@
+name: Changelog Sync
+
+# Mirrors the JellyRock app's per-merge changelog sync: after anything lands on
+# main, regenerate CHANGELOG.md's [Unreleased] section from the merged PR titles
+# (scripts/changelog-sync-unreleased.sh) and commit it back. Release-time dating +
+# roll-up stays in release-prepare.yml; this only maintains [Unreleased].
+on:
+  push:
+    branches: [main]
+    # This job's own commit touches ONLY CHANGELOG.md, so ignoring that path stops
+    # the workflow re-triggering itself (no loop, no wasted run). Real PR merges
+    # always touch code too, so they still trigger a sync.
+    paths-ignore:
+      - CHANGELOG.md
+  workflow_dispatch:
+
+# Commit + push run as the jellyrock[bot] App token (same as release.yml) so the
+# changelog commit is attributable and can push to a protected main. The default
+# GITHUB_TOKEN stays read-only.
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize with itself so two quick merges can't race on the CHANGELOG commit.
+  group: changelog-sync-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags: the sync anchors the [Unreleased] range on the
+          # latest release tag, and needs first-parent PR subjects since then.
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Configure git identity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          APP_USER_ID=$(gh api "/users/jellyrock[bot]" --jq .id)
+          git config user.name "jellyrock[bot]"
+          git config user.email "${APP_USER_ID}+jellyrock[bot]@users.noreply.github.com"
+
+      - name: Sync [Unreleased] from merged PRs
+        run: ./scripts/changelog-sync-unreleased.sh
+
+      # Guard: never let the bot commit a structurally broken changelog.
+      - name: Validate changelog structure
+        run: ./scripts/changelog-validate.sh
+
+      - name: Commit + push if changed
+        run: |
+          if git diff --quiet -- CHANGELOG.md; then
+            echo "ℹ️ [Unreleased] already up to date — nothing to commit."
+            exit 0
+          fi
+          git add CHANGELOG.md
+          git commit -m "docs(changelog): sync [Unreleased] section"
+          # Replay onto any commit that landed on main while we were running, then
+          # push. `docs:`-typed, so changelog-gen.sh never lists this commit itself.
+          git pull --rebase --autostash origin main
+          git push origin main
