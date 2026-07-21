@@ -1,0 +1,63 @@
+name: Commit Style
+
+# Enforces conventional-commit subjects so the auto-generated changelog categorizes
+# correctly (see scripts/changelog-gen.sh + CONTRIBUTING.md). Two entry paths:
+#   - pull_request: the PR title becomes the squash/merge commit subject = the
+#     changelog source. This job is authoritative — make it a required check to
+#     block a mis-typed title before merge.
+#   - push to main: direct commits (which bypass PRs) are validated after the fact;
+#     a red run is the heads-up, since github.com can't reject a push by message.
+# Pure bash, no toolchain — shares scripts/lint-commit-subject.sh with local runs.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PR title (= squash/merge commit subject = changelog source)
+        # Via env, never inlined into the script line, so a crafted title can't inject shell.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: ./scripts/lint-commit-subject.sh "$PR_TITLE"
+
+  pushed-commits:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate subjects of the pushed commits
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          # Range for this push. On a force-push / new branch, `before` is absent or
+          # not an ancestor — fall back to just the tip commit.
+          if [[ "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            range="${AFTER}~1..${AFTER}"
+          else
+            range="${BEFORE}..${AFTER}"
+          fi
+
+          fail=0
+          # --no-merges: merge commits carry no changelog entry. Skip bot commits
+          # (their subjects are already conventional and bot-authored anyway).
+          while read -r sha; do
+            [[ -n "$sha" ]] || continue
+            author="$(git log -1 --format='%ae' "$sha")"
+            [[ "$author" == *"jellyrock[bot]"* ]] && continue
+            subject="$(git log -1 --format='%s' "$sha")"
+            ./scripts/lint-commit-subject.sh "$subject" || fail=1
+          done < <(git rev-list --no-merges "$range")
+          exit "$fail"

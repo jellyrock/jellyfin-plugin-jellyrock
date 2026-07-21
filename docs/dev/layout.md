@@ -1,12 +1,14 @@
 # Repo layout
 
 ```text
-CHANGELOG.md                          # Keep a Changelog; release notes come from here
+CHANGELOG.md                          # Keep a Changelog; auto-generated from commit subjects
+CONTRIBUTING.md                       # commit-message / PR-title convention (drives the changelog)
+CLAUDE.md                             # agent guide (conventional commits, don't hand-edit CHANGELOG)
 Directory.Build.props                 # assembly <Version> (kept in lockstep with build.yaml)
 jellyfin.ruleset / .editorconfig      # analyzer + style config (StyleCop, etc.)
 Jellyfin.Plugin.JellyRock.sln
-scripts/                              # release helpers (set-version, changelog-gen/-sync/-extract/-validate, parity)
-.github/workflows/                    # ci.yml, changelog-sync.yml, changelog-validate.yml, release-prepare.yml, release.yml
+scripts/                              # release + changelog helpers (set-version, changelog-*, lint-commit-subject, parity)
+.github/workflows/                    # ci.yml, commit-style.yml, changelog-sync.yml, changelog-validate.yml, release-prepare.yml, release.yml
 docs/
   features/                           # per-feature docs linked from the README
   dev/                                # sideload + this layout
