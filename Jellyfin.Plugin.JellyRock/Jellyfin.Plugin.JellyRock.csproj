@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.JellyRock</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.JellyRock</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -19,25 +19,37 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The dashboard config page (issue #668 admin toggles). Embedded so Plugin.GetPages() can serve it
+         via EmbeddedResourcePath; the resource name must stay "<namespace>.Configuration.configPage.html". -->
+    <EmbeddedResource Include="Configuration\configPage.html" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The test project drives PlaybackReaperService.SweepAsync() directly so the reap wiring is
          verified without waiting on the timer; it stays internal to keep it off the public surface. -->
     <InternalsVisibleTo Include="Jellyfin.Plugin.JellyRock.Tests" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Compiled against the OLDEST supported server line (10.9.0) on purpose: this makes the
+    <!-- Compiled against the OLDEST supported server line (10.11.0) on purpose: this makes the
          compiler ENFORCE the support floor — the plugin can only bind to API present in every server
-         we target, so we can't silently pick up a 10.10/10.11-only member. A single net8.0 assembly
-         then loads on 10.9/10.10 (net8) and 10.11 (net9 loads net8); the session API it uses is
-         byte-identical across that range (verified 10.9→10.11). 12.0 (net10, currently RC) keeps the
-         same session API and a net8 build should load there too — verify on-device before advertising
-         it. Compile-time only; the server supplies the patched runtime assemblies (ExcludeAssets=runtime),
-         so building against 10.9.0 does not ship an old assembly. Keep targetAbi in build.yaml in sync
-         with this floor. -->
-    <PackageReference Include="Jellyfin.Controller" Version="10.9.0">
+         we target, so we can't silently pick up a 10.11.2+-only member. Keep targetAbi in build.yaml
+         in sync with this floor.
+
+         The floor moved 10.9 → 10.11 (net8 → net9) for the cold-launch producer (#668): the phantom
+         cast session calls ISessionManager.LogSessionActivity(User) and IUserManager.GetUserById,
+         which name the `User` ENTITY. That type MOVED out of Jellyfin.Data.Entities in the 10.11
+         database refactor, so a 10.9-floor build TypeLoadExceptions the moment the phantom JITs on a
+         10.11 server. There is no single assembly that carries the phantom AND loads on 10.9/10.10, so
+         the whole companion floor-bumps to 10.11; servers on 10.9/10.10 stay on the last 10.9-ABI
+         release (they are simply not offered newer versions — Jellyfin gates on the manifest targetAbi).
+         Decision recorded in the producer ADR (#668). Revisit only to re-add old-server support via a
+         two-track release. Compile-time only; the server supplies the patched runtime assemblies
+         (ExcludeAssets=runtime), so building against 10.11.0 does not ship that assembly. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="Jellyfin.Model" Version="10.9.0">
+    <PackageReference Include="Jellyfin.Model" Version="10.11.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
   </ItemGroup>
