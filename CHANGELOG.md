@@ -10,6 +10,9 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
 
+### Changed
+
+- Cold-launch cast producer: phantom session, pairing, validation ([#9](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/9))
 ## [0.2.0](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.1.2...v0.2.0) - 2026-07-16
 
 - reap idle JellyRock playback sessions on HTTPS servers ([#7](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/7))
