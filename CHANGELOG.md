@@ -12,6 +12,7 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ### Added
 
+- at-least-once command delivery via MessageId ack ([#10](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/10))
 - Cold-launch cast producer: phantom session, pairing, validation ([#9](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/9))
 
 ## [0.2.0](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.1.2...v0.2.0) - 2026-07-16
