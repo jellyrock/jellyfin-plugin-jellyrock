@@ -25,6 +25,12 @@ https / remote servers.
 3. **Closed-app hygiene:** the session is advertised as a cast target only while JellyRock is actively
    polling. When the app closes (or the poll loop dies), the liveness window lapses and Jellyfin's next
    cast-list query drops JellyRock automatically, no stale target left behind.
+4. **At-least-once delivery:** because a command is drained from the queue to be written into the poll
+   response, a client that disconnects mid-delivery would otherwise lose that batch. An ack-capable client
+   sends a cumulative acknowledgment on each poll (`ack=1` + the last `MessageId` it received); the plugin
+   retains delivered commands and redelivers any it hasn't confirmed, so a lost response self-heals. This is
+   opt-in and additive — a client that doesn't ack (or a server without this) falls back to at-most-once with
+   no version bump. Details in the [wire contract](https://github.com/jellyrock/jellyrock/blob/main/docs/architecture/remote-control-longpoll-contract.md#at-least-once-delivery).
 
 ## Wire contract
 
@@ -34,4 +40,5 @@ The long-poll protocol is frozen and versioned in the JellyRock repo at
 ## Requirements
 
 An **HTTPS** Jellyfin server (10.11+) and JellyRock **v2.23.0 or newer** (the release that added the
-HTTPS remote-control support that consumes this channel).
+HTTPS remote-control support that consumes this channel). At-least-once delivery additionally needs
+JellyRock **v2.24.0 or newer**; older clients keep working at at-most-once.

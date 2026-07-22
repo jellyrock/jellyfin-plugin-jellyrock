@@ -71,8 +71,16 @@ public class RemoteControlController : ControllerBase
     /// <summary>
     /// Long-poll for queued remote-control commands. Holds up to <paramref name="waitMs"/> for a
     /// command, refreshing session activity and liveness as a side effect (the poll IS the keepalive).
+    ///
+    /// <para><paramref name="ack"/>/<paramref name="ackId"/> are the additive, opt-in at-least-once
+    /// signal (contract v1). An ack-capable client sends <c>ack=1</c> on every poll and, once it has
+    /// received a command, <c>ackId=&lt;last MessageId it durably received&gt;</c>; the plugin then
+    /// retains delivered commands and redelivers any the client hasn't confirmed. A client that omits
+    /// them gets the legacy at-most-once drain — so this never regresses an older client.</para>
     /// </summary>
     /// <param name="waitMs">Requested hold ceiling in ms (clamped server-side to 5-30s).</param>
+    /// <param name="ack">1 if the client is ack-capable (retain + redeliver until acked); absent/0 for the legacy at-most-once drain.</param>
+    /// <param name="ackId">The client's cumulative ack — the last <c>MessageId</c> it durably received. Absent/unparseable acks nothing. Only meaningful with <c>ack=1</c>.</param>
     /// <param name="cancellationToken">Request cancellation (client disconnect).</param>
     /// <returns>200 with a JSON array of command envelopes, or 204 if the hold elapsed empty.</returns>
     [HttpGet("poll")]
@@ -82,7 +90,7 @@ public class RemoteControlController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> Poll([FromQuery] int waitMs = MaxWaitMs, CancellationToken cancellationToken = default)
+    public async Task<ActionResult> Poll([FromQuery] int waitMs = MaxWaitMs, [FromQuery] int ack = 0, [FromQuery] string? ackId = null, CancellationToken cancellationToken = default)
     {
         var deviceId = User.FindFirst(DeviceIdClaim)?.Value;
         var client = User.FindFirst(ClientClaim)?.Value;
@@ -114,7 +122,12 @@ public class RemoteControlController : ControllerBase
         var controller = JellyRockSessionService.EnsureAttached(_sessionManager, session);
         controller.MarkPolled(waitMs);
 
-        var batch = await controller.DequeueBatchAsync(waitMs, cancellationToken).ConfigureAwait(false);
+        // Opt-in at-least-once: ack=1 flags an ack-capable client; ackId (if a valid GUID) is its
+        // cumulative ack. An absent/garbled ackId acks nothing (Guid.Empty), so the buffer is retained.
+        var ackMode = ack == 1;
+        _ = Guid.TryParse(ackId, out var parsedAckId);
+
+        var batch = await controller.DequeueBatchAsync(waitMs, ackMode, parsedAckId, cancellationToken).ConfigureAwait(false);
         if (batch.Count == 0)
         {
             return NoContent();
