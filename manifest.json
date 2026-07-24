@@ -9,6 +9,14 @@
         "imageUrl": "https://jellyrock.github.io/jellyfin-plugin-jellyrock/jellyrock.png",
         "versions": [
             {
+                "version": "0.3.0.0",
+                "changelog": "at-least-once command delivery via MessageId ack ([#10](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/10)); Cold-launch cast producer: phantom session, pairing, validation ([#9](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/9))",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/releases/download/v0.3.0/jellyrock-companion_0.3.0.0.zip",
+                "checksum": "788056752e2ac2981f3bdbb10730538d",
+                "timestamp": "2026-07-24T06:15:43Z"
+            },
+            {
                 "version": "0.2.0.0",
                 "changelog": "reap idle JellyRock playback sessions on HTTPS servers ([#7](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/7))",
                 "targetAbi": "10.9.0.0",
