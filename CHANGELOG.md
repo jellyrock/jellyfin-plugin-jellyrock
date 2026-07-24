@@ -10,6 +10,8 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.2.0...v0.3.0) - 2026-07-24
+
 ### Added
 
 - at-least-once command delivery via MessageId ack ([#10](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/10))
