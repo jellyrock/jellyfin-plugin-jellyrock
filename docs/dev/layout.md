@@ -8,7 +8,10 @@ Directory.Build.props                 # assembly <Version> (kept in lockstep wit
 jellyfin.ruleset / .editorconfig      # analyzer + style config (StyleCop, etc.)
 Jellyfin.Plugin.JellyRock.sln
 scripts/                              # release + changelog helpers (set-version, changelog-*, lint-commit-subject, parity)
-.github/workflows/                    # ci.yml, commit-style.yml, changelog-sync.yml, changelog-validate.yml, release-prepare.yml, release.yml
+                                      #   + check-server-abi.sh (does the plugin bind to each server line?)
+tools/ServerAbiCheck/                 # the Mono.Cecil checker check-server-abi.sh runs (docs/dev/README.md)
+.github/workflows/                    # ci.yml, commit-style.yml, changelog-sync.yml, changelog-validate.yml, release-prepare.yml, release.yml,
+                                      #   server-abi-watch.yml (weekly server compatibility check)
 docs/
   features/                           # per-feature docs linked from the README
   dev/                                # sideload + this layout
