@@ -45,3 +45,47 @@ jobs:
 
       - name: Test
         run: dotnet test Jellyfin.Plugin.JellyRock.Tests/Jellyfin.Plugin.JellyRock.Tests.csproj -c Release --no-build --verbosity normal
+
+  server-abi:
+    name: Server compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      # The newest release of every server line from the targetAbi floor up
+      # (docs/dev/README.md, "Server compatibility check"). `shell: bash` runs with
+      # pipefail, so a failed listing fails the step.
+      - name: Resolve the supported server releases
+        id: servers
+        shell: bash
+        run: |
+          list=$(./scripts/check-server-abi.sh --list | tr "\n" " ")
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "key=$(tr " " "_" <<<"$list")" >> "$GITHUB_OUTPUT"
+
+      # A published release never changes, so the cache is keyed on the release list:
+      # it is saved again only when Jellyfin ships a release.
+      - name: Cache Jellyfin releases
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/jellyfin-plugin-jellyrock/servers
+          key: jellyfin-servers-${{ steps.servers.outputs.key }}10.10.7
+          restore-keys: jellyfin-servers-
+
+      - name: Check the plugin binds to every supported server line
+        env:
+          SERVERS: ${{ steps.servers.outputs.list }}
+        run: |
+          read -ra servers <<<"$SERVERS"
+          ./scripts/check-server-abi.sh "${servers[@]}"
+
+      # The control: 10.10 lacks the 10.11 User entity the plugin binds to, so this must
+      # fail. If it ever passes, the check has stopped seeing breaks.
+      - name: Check the plugin does not bind below the floor
+        run: ./scripts/check-server-abi.sh --no-build --expect-fail 10.10.7

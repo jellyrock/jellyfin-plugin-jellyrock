@@ -1,0 +1,97 @@
+name: Server compatibility watch
+
+# Runs the server compatibility check weekly, so a new Jellyfin release is checked
+# even when nobody pushes. A failure opens one issue (or comments on the open one);
+# the next pass closes it. See docs/dev/README.md, "Server compatibility check".
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: server-abi-watch
+  cancel-in-progress: false
+
+env:
+  ISSUE_TITLE: Server compatibility check failed
+
+jobs:
+  check:
+    name: Server compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Resolve the supported server releases
+        id: servers
+        shell: bash
+        run: |
+          ./scripts/check-server-abi.sh --list 2>&1 | tee "$RUNNER_TEMP/server-abi.log"
+          list=$(tr "\n" " " < "$RUNNER_TEMP/server-abi.log")
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "key=$(tr " " "_" <<<"$list")" >> "$GITHUB_OUTPUT"
+
+      # A published release never changes, so the cache is keyed on the release list:
+      # it is saved again only when Jellyfin ships a release.
+      - name: Cache Jellyfin releases
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/jellyfin-plugin-jellyrock/servers
+          key: jellyfin-servers-${{ steps.servers.outputs.key }}
+          restore-keys: jellyfin-servers-
+
+      # `shell: bash` runs with pipefail, so the check's failure is not hidden by tee.
+      - name: Check the plugin binds to every supported server line
+        shell: bash
+        env:
+          SERVERS: ${{ steps.servers.outputs.list }}
+        run: |
+          read -ra servers <<<"$SERVERS"
+          ./scripts/check-server-abi.sh "${servers[@]}" 2>&1 | tee "$RUNNER_TEMP/server-abi.log"
+
+      - name: Open or update the failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body_file="$RUNNER_TEMP/issue.md"
+          {
+            echo "The weekly server compatibility check failed: $RUN_URL"
+            echo
+            echo "A \`problems\` line means a Jellyfin release would fail to load the plugin, or would"
+            echo "never call one of its overrides. Anything else means the check could not run."
+            echo
+            echo '```text'
+            tail -n 60 "$RUNNER_TEMP/server-abi.log" 2>/dev/null || echo "(no output captured)"
+            echo '```'
+          } > "$body_file"
+          number=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title --jq "map(select(.title == \"$ISSUE_TITLE\")) | .[0].number // empty")
+          if [[ -n "$number" ]]; then
+            gh issue comment "$number" --body-file "$body_file"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file "$body_file"
+          fi
+
+      - name: Close the failure issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          number=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title --jq "map(select(.title == \"$ISSUE_TITLE\")) | .[0].number // empty")
+          if [[ -n "$number" ]]; then
+            gh issue close "$number" --comment "Passes again: $RUN_URL"
+          fi
