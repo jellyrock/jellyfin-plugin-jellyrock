@@ -23,6 +23,9 @@ threshold, it stops the session the same way Jellyfin's own idle reaper does, ju
 
 It records the resume point at the **last confirmed check-in** position rather than Jellyfin's
 forward-extrapolated one, so resuming later lands where you actually stopped instead of skipping ahead.
+Jellyfin 12.0 made its own idle cleanup do the same
+([jellyfin#17631](https://github.com/jellyfin/jellyfin/pull/17631)), so on 12.0 and newer the resume
+point is right either way, and the plugin's gain is the faster cleanup.
 Paused sessions are left untouched (Jellyfin's own paused/idle handling covers those).
 
 ## Requirements
