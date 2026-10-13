@@ -32,7 +32,8 @@ Three independent, server-assisted capabilities for JellyRock:
   socket, by bridging commands over a TLS long-poll.
 - **[Fast playback cleanup](docs/features/playback-cleanup.md)**: reap a closed app's playback session
   fast. Already near-instant on **http** with no plugin; the plugin **extends the same cleanup to https**,
-  reaping the lingering session in ~60s (instead of Jellyfin's ~5-10 min) with an accurate resume point.
+  reaping the lingering session in ~60s (instead of Jellyfin's ~5-10 min) and, on servers before 12.0,
+  an accurate resume point (12.0 records that itself).
 
 ## Do I need it?
 
