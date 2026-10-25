@@ -1,7 +1,7 @@
 # JellyRock Companion — agent guide
 
 Server-side Jellyfin plugin (C#, `net9.0`) that is the companion to the JellyRock Roku app. Full
-contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md).
+contributor guide: [docs/dev/contributing.md](docs/dev/contributing.md).
 
 ## Commits & PR titles — conventional, because they drive the changelog
 

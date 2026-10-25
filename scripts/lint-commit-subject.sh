@@ -36,6 +36,6 @@ cat >&2 <<EOF
 
   Why: the changelog groups entries by type (feat -> Added, fix -> Fixed, ...).
   A subject with no recognized type silently lands under "Changed".
-  See CONTRIBUTING.md.
+  See docs/dev/contributing.md.
 EOF
 exit 1

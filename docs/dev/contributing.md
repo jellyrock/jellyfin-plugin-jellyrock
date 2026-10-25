@@ -1,4 +1,8 @@
-# Contributing
+# Contributing to the plugin
+
+This page covers what is specific to the JellyRock Companion plugin. The
+[organization's contributing guide](https://github.com/jellyrock/.github/blob/main/CONTRIBUTING.md)
+covers the rest: questions, bug reports, pull requests in general and AI-assisted contributions.
 
 ## Commit messages & PR titles
 
@@ -54,10 +58,10 @@ Pick the type deliberately: a new user-facing feature is `feat` (Added), not a v
 `CHANGELOG.md`'s `## [Unreleased]` section is **regenerated on every push to `main`** and committed
 back by the bot. Manual edits to it will be overwritten. To change what appears, change the commit
 subject (see above). Dated release sections are written by the release flow. See
-[docs/dev/releasing.md](docs/dev/releasing.md).
+[releasing.md](releasing.md).
 
 ## Building & releasing
 
 No local .NET SDK is required — builds run in the official SDK container. See
-[docs/dev/README.md](docs/dev/README.md) for the build/test commands and
-[docs/dev/releasing.md](docs/dev/releasing.md) for the release runbook.
+[README.md](README.md) for the build/test commands and
+[releasing.md](releasing.md) for the release runbook.
