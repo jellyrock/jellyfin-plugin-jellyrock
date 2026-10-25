@@ -70,6 +70,7 @@ which calls for the same decision.
 
 ## More
 
+- [Contributing](contributing.md): commit and PR-title style, which drives the changelog.
 - [Manual sideload](sideload.md): drop an unreleased build onto a server by hand.
 - [Repo layout](layout.md): the file tree and what each piece does.
 - [Releasing](releasing.md): the maintainer release runbook.

@@ -64,5 +64,5 @@ The remote-control and playback-cleanup features have no settings.
 
 ## Development
 
-Building the plugin, the manual sideload, repo layout, and the maintainer release runbook live in
+Building the plugin, the commit and PR-title style, the manual sideload, repo layout, and the maintainer release runbook live in
 [docs/dev](docs/dev/).

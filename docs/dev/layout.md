@@ -2,7 +2,6 @@
 
 ```text
 CHANGELOG.md                          # Keep a Changelog; auto-generated from commit subjects
-CONTRIBUTING.md                       # commit-message / PR-title convention (drives the changelog)
 CLAUDE.md                             # agent guide (conventional commits, don't hand-edit CHANGELOG)
 Directory.Build.props                 # assembly <Version> (kept in lockstep with build.yaml)
 jellyfin.ruleset / .editorconfig      # analyzer + style config (StyleCop, etc.)
@@ -14,7 +13,7 @@ tools/ServerAbiCheck/                 # the Mono.Cecil checker check-server-abi.
                                       #   server-abi-watch.yml (weekly server compatibility check)
 docs/
   features/                           # per-feature docs linked from the README
-  dev/                                # sideload + this layout
+  dev/                                # build, contributing (commit + PR-title style), releasing, sideload, this layout
 Jellyfin.Plugin.JellyRock/
   build.yaml                          # plugin manifest (guid, targetAbi, framework, artifact, version); jprm reads this
   Jellyfin.Plugin.JellyRock.csproj    # net9.0, compiled against the Jellyfin 10.11.0 API floor

@@ -1,7 +1,7 @@
 name: Commit Style
 
 # Enforces conventional-commit subjects so the auto-generated changelog categorizes
-# correctly (see scripts/changelog-gen.sh + CONTRIBUTING.md). Two entry paths:
+# correctly (see scripts/changelog-gen.sh + docs/dev/contributing.md). Two entry paths:
 #   - pull_request: the PR title becomes the squash/merge commit subject = the
 #     changelog source. This job is authoritative — make it a required check to
 #     block a mis-typed title before merge.
