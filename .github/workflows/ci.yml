@@ -4,9 +4,11 @@ on:
   push:
     branches: [main]
     paths-ignore: ['**/*.md']
+  # No paths filter on PRs: these jobs are required checks on main, and GitHub leaves a
+  # required check Pending forever when a filter skips its workflow, so a docs-only PR
+  # could never merge.
   pull_request:
     branches: [main]
-    paths-ignore: ['**/*.md']
   workflow_dispatch:
 
 jobs:
@@ -33,7 +35,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          global-json-file: global.json
 
       - name: Restore
         run: dotnet restore Jellyfin.Plugin.JellyRock.sln
@@ -56,7 +58,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          global-json-file: global.json
 
       # The newest release of every server line from the targetAbi floor up
       # (docs/dev/README.md, "Server compatibility check"). `shell: bash` runs with

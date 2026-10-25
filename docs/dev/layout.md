@@ -4,6 +4,8 @@
 CHANGELOG.md                          # Keep a Changelog; auto-generated from commit subjects
 CLAUDE.md                             # agent guide (conventional commits, don't hand-edit CHANGELOG)
 Directory.Build.props                 # assembly <Version> (kept in lockstep with build.yaml)
+global.json                           # .NET SDK pin; CI reads it, Renovate updates it
+renovate.json                         # dependency updates: org preset + this repo's overrides
 jellyfin.ruleset / .editorconfig      # analyzer + style config (StyleCop, etc.)
 Jellyfin.Plugin.JellyRock.sln
 scripts/                              # release + changelog helpers (set-version, changelog-*, lint-commit-subject, parity)
