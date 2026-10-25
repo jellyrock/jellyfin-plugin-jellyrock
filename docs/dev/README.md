@@ -68,6 +68,23 @@ package versions in the csproj together); older servers then stay on the last re
 them. An error that the floor line has no release means Jellyfin has moved that line to its archive,
 which calls for the same decision.
 
+## Dependency updates
+
+[Renovate](https://docs.renovatebot.com/) opens the update PRs, using the org preset
+([jellyrock/.github `renovate/`](https://github.com/jellyrock/.github/tree/main/renovate)) plus the
+overrides in `renovate.json`. Patch and minor updates merge themselves once CI is green and the
+release is a few days old; majors always wait for review. It leaves alone:
+
+- `Jellyfin.Controller` and `Jellyfin.Model`: they are the server API floor (see above), raised by hand
+  together with `targetAbi`.
+- .NET SDK majors: the SDK major follows the `net9.0` target.
+
+The SDK version lives in `global.json`, which CI's `setup-dotnet` reads. Locally, any newer 9.0 SDK
+also works (`rollForward: latestFeature`). Renovate's PRs keep that pin current.
+
+**Required checks on `main`:** `Version parity`, `Build + test`, `Server compatibility` and
+`pr-title`. Every PR runs them, docs-only ones included.
+
 ## More
 
 - [Contributing](contributing.md): commit and PR-title style, which drives the changelog.

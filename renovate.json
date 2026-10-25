@@ -1,0 +1,22 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>jellyrock/.github//renovate/default"],
+  "packageRules": [
+    {
+      "description": "Keep NuGet's plain Version=\"x.y.z\" and raise it, instead of the preset's exact pin. In NuGet a plain version means \"this or newer\", so pinning rewrites it to [newest] and folds major jumps into one unlabelled \"pin\" PR.",
+      "matchManagers": ["nuget"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Jellyfin.Controller and Jellyfin.Model are the server API floor, not a dependency to keep current: the plugin compiles against the oldest supported server on purpose. Raise them only with targetAbi in build.yaml (docs/dev/README.md, \"When it fails\"). server-abi-watch.yml checks each new Jellyfin release instead.",
+      "matchPackageNames": ["Jellyfin.Controller", "Jellyfin.Model"],
+      "enabled": false
+    },
+    {
+      "description": "The .NET SDK major follows the net9.0 TargetFramework, which follows the server floor. global.json takes patch and feature-band updates only.",
+      "matchDepNames": ["dotnet-sdk"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}
