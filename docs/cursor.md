@@ -28,6 +28,14 @@ None open.
 
 `AGENTS.md` ("Commits & PR titles") says "The PR title is the changelog source for squash/merge PRs". The repo's squash setting is `COMMIT_OR_PR_TITLE` (read 2026-10-27 with `gh api repos/jellyrock/jellyfin-plugin-jellyrock`), so on a one-commit squash GitHub uses the commit's subject instead, and `scripts/changelog-gen.sh` reads first-parent subjects. Nothing breaks today because Commit Style lints both the title and the pushed subjects, but an agent following the line may fix the title and miss a wrong commit subject. Closes when the line says which subject reaches `CHANGELOG.md` in each merge mode (squash with one commit, squash with several, merge commit, rebase), matching `.github/pull_request_template.md`'s hint, or when the squash setting is changed to `PR_TITLE`.
 
+### Docs
+
+#### Reword the Markdown voice hits the baseline still allows `[fid: voice-baseline-hits-to-zero]` `[captured 2026-10-27]`
+
+`.voice-baseline.tsv` allows the voice hits the Markdown had when it was seeded: em dashes, arrows in prose and filler words in `AGENTS.md`, `docs/dev/contributing.md`, `docs/dev/releasing.md`, `README.md`, `docs/features/playback-cleanup.md` and `docs/features/remote-control.md`. Reword them, then run `bash .claude/skills/log/voice-check.sh --lower` so the baseline keeps the gain.
+
+`bash .claude/skills/log/voice-check.sh --counts $(git ls-files '*.md' | grep -v CHANGELOG.md) | awk -F'\t' '$3 > 0'` lists what is left. Closes when that prints nothing and the baseline holds only its header.
+
 ## Batch jobs
 
 Nothing currently running. (Long-running ingest, restores, migrations, or builds land here while in flight so `/catchup` can surface them.)
