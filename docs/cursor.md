@@ -16,6 +16,18 @@ Nothing currently in flight outside the tracked projects.
 
 None open.
 
+### CI
+
+#### The release workflows have no rows in /ci-triage's gates.tsv `[fid: release-workflows-unmapped-in-ci-gates]` `[captured 2026-10-27]`
+
+`.claude/skills/ci-triage/gates.tsv` maps every step of `ci.yml`, `commit-style.yml`, `changelog-validate.yml`, `changelog-sync.yml` and `server-abi-watch.yml`, but not `release.yml` or `release-prepare.yml` (packaging with jprm, the tag, the GitHub release, the gh-pages manifest). A failure there reports `unknown`. They were left out on 2026-10-27 because `docs/dev/releasing.md` has no recovery steps for a half-finished release (for example a tag created but the release or manifest not published), so no banner could say what the safe next move is. Closes when `docs/dev/releasing.md` says how to recover from each release step failing and `gates.tsv` has a row per release step whose banner points there, or when the first real release failure adds them.
+
+### Agent guide
+
+#### AGENTS.md says the PR title is the changelog source, which a one-commit squash contradicts `[fid: agents-md-changelog-source-line]` `[captured 2026-10-27]`
+
+`AGENTS.md` ("Commits & PR titles") says "The PR title is the changelog source for squash/merge PRs". The repo's squash setting is `COMMIT_OR_PR_TITLE` (read 2026-10-27 with `gh api repos/jellyrock/jellyfin-plugin-jellyrock`), so on a one-commit squash GitHub uses the commit's subject instead, and `scripts/changelog-gen.sh` reads first-parent subjects. Nothing breaks today because Commit Style lints both the title and the pushed subjects, but an agent following the line may fix the title and miss a wrong commit subject. Closes when the line says which subject reaches `CHANGELOG.md` in each merge mode (squash with one commit, squash with several, merge commit, rebase), matching `.github/pull_request_template.md`'s hint, or when the squash setting is changed to `PR_TITLE`.
+
 ## Batch jobs
 
 Nothing currently running. (Long-running ingest, restores, migrations, or builds land here while in flight so `/catchup` can surface them.)

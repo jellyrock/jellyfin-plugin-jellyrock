@@ -2,7 +2,7 @@
 name: snag
 model: opus
 effort: medium
-description: Handle a flaw found mid-work without switching gears. Start it the moment a defect, bug, gap or regression surfaces while doing other work, before any fix is drafted. A trivial slip is fixed on the spot. Anything else is investigated read-only (reproduce, root cause, history of the broken lines, what depends on it), then shown on one decision screen with the candidate fixes, a recommended fix and a recommended timing. The user picks a fix to build now (test-first, committed, never pushed) or files it as a pinned followup (asap) or a plain one (later). Not for picking the next task (use /focus) or saving a thought unexamined (use /log).
+description: Handle a flaw found mid-work without switching gears. Start it the moment a defect, bug, gap or regression surfaces while doing other work, before any fix is drafted. A trivial slip is fixed on the spot. Anything else is investigated read-only (reproduce, root cause, history of the broken lines, what depends on it), then shown on one decision screen with the candidate fixes, a recommended fix and a recommended timing. The user picks a fix to build now (test-first, committed, never pushed) or files it as a pinned followup (asap) or a plain one (later). Not for picking the next task (use /focus) or saving a thought unexamined (use /log), or a failed CI run or an issue that has its own flow (use /ci-triage, /issue-triage).
 ---
 
 # /snag: investigate a flaw found mid-work; the user chooses the fix and when

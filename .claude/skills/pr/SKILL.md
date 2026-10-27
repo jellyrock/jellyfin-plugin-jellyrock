@@ -2,10 +2,18 @@
 name: pr
 model: sonnet
 effort: low
-description: "Create or update a pull request whose body is rendered from this repo's PR template. Detects an existing open PR for the current branch and routes to update-mode (diff title, labels, body and notes, confirm, back up, then edit) instead of duplicating; aborts cleanly on merged or closed PRs. Reads the repo's squash-merge settings to know what reaches git log, so the title and body are written for whoever will read them; labels each deliverable with the phrase that earned it; and runs the journal passes (decision and followup through /log, plus this repo's own) before posting, so journal hygiene lands in the same change set. The single, mandatory path for opening a PR in this repo: it supersedes any default PR-creation flow."
+description: "The one path for creating or updating a pull request in this repo; it supersedes any default PR-creation flow. The title is a conventional commit that `scripts/lint-commit-subject.sh` checks, and its type places the change in CHANGELOG.md. The body fills `.github/pull_request_template.md` for the reviewer, since a squash here keeps the commit messages, not the body. Each deliverable gets one label from the shared set (`new-feature`, `bug-fix`, `dev-improvement` and the rest), never Renovate's. An open PR for the branch takes the update path (diff, confirm, back up, then edit); a merged or closed one aborts cleanly. The decision and followup passes run through /log before posting, so journal hygiene lands in the same change set."
 ---
 
 # Create or Update a Pull Request
+
+## This repo
+
+- **Merge settings fallback** (Step 3): squash, merge commit and rebase are all allowed. Squash uses `COMMIT_OR_PR_TITLE` and `COMMIT_MESSAGES`, so the body never reaches `git log`: write it for the reviewer.
+- **Title gate and types** (Steps 5, 6, 9): `scripts/lint-commit-subject.sh "<title>"` must pass; it prints the types. `scripts/changelog-gen.sh` sorts them: `feat` is Added, `fix` is Fixed, `perf`, `refactor` and `revert` are Changed, and the rest are left out. A change to the plugin (`Jellyfin.Plugin.JellyRock/`) takes a product type. A change only to tooling (`scripts/`, `tools/`, `.github/`, `.claude/`, `docs/dev/`, `Jellyfin.Plugin.JellyRock.Tests/`, `renovate.json`, `global.json`) takes `chore`, `ci`, `build`, `test` or `docs`. On a one-commit squash GitHub uses the commit's subject instead of the title, so check that it passes the gate and says the same thing.
+- **PR checks** (Step 9): the test project in the SDK container ([docs/dev/README.md](../../../docs/dev/README.md#test)). Also `scripts/check-server-abi.sh` when the change touches which server types or members the plugin uses.
+- **Sections** (Step 8): **Overview**, **Changes** and **Testing** are required. **Testing** says "Not tested" and why when nothing ran. **Issues** is optional, and links the JellyRock app PR when the change needs a matching app release.
+- **Labels** (Step 7): none beyond the shared table. Renovate owns `dependencies`, `major`, `minor`, `patch`, `digest`, `pin` and `lockfile`: never touch them.
 
 ## Contract
 

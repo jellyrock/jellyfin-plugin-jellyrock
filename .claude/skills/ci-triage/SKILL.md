@@ -2,10 +2,14 @@
 name: ci-triage
 model: opus
 effort: high
-description: "Diagnose a failed CI workflow run and fix it the /snag way. A tested read-only script fetches the run, reports every failed job and step with the log region around its errors (not the post-job cleanup), and classifies each against this repo's gates.tsv, printing the banner a gate carries when its obvious fix is the wrong one. Then: re-run only what is transient, reproduce locally, find the root cause, and show one decision screen; the chosen fix is built test-first and committed on a fix branch, never pushed. Use when a CI run failed on a pull request or on the default branch."
+description: "Diagnose a failed GitHub Actions run in this repo (CI's version parity, build, test and server compatibility jobs, Commit Style, the changelog workflows, or the weekly server compatibility watch) and fix it the /snag way. A tested read-only script fetches the run, reports every failed step with the log around its errors, and classifies it against `gates.tsv`, printing the banner a gate carries when its obvious fix is the wrong one (never hand-edit CHANGELOG.md, never drop a server line). Then: re-run only what is transient, reproduce locally in the SDK container, find the root cause, and show one decision screen; the chosen fix is built test-first and committed on a fix branch, never pushed. Use when a run failed on a pull request or on main."
 ---
 
 # /ci-triage: diagnose a failed CI run
+
+## This repo
+
+- **Local commands** (Step 5): there is no host .NET SDK. Build and test in the SDK container ([docs/dev/README.md](../../../docs/dev/README.md)). `scripts/check-server-abi.sh` uses the host's dotnet when there is one, else the container. Every other gate is a script in `scripts/` named in its `gates.tsv` banner.
 
 ## Contract
 

@@ -2,7 +2,7 @@
 name: create-issue
 model: sonnet
 effort: low
-description: "Draft an issue from a report (a forum or chat post, an email, a free-form bug description, or a defect found during work) and submit it through forge.sh. First checks the report belongs in the issue tracker at all, routing it elsewhere when this repo tracks that kind of work in its journal. Reads the repo's YAML issue forms to pick the right one and learn its required fields (or uses this repo's own body shape when it has no forms), searches open and closed issues for duplicates, fills each field from the input without inventing anything, sweeps a public repo's issue for private material, confirms with the user, then submits with the form's labels passed explicitly, using the repo's existing labels before ever proposing a new one. Use when you have a report you want formalized into a properly structured issue."
+description: "Draft an issue for this repo from a report (a forum or chat post, an email, a free-form bug description, or a defect found during work) and submit it through forge.sh. First checks the report belongs in the issue tracker at all, routing a followup or a decision to /log instead. This repo has no issue forms, so the body is plain Markdown: what is wrong, how to reproduce it, what done looks like. Searches open and closed issues for duplicates, fills from the input without inventing anything, sweeps this public repo's issue for private material, and confirms with you. It then submits using the repo's existing labels before ever proposing a new one. Use when you have a report you want formalized into an issue."
 ---
 
 # /create-issue: draft and submit an issue

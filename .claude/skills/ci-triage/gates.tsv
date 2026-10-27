@@ -19,3 +19,18 @@
 #Run lint suite	lint-fail	[0-9]+ check\(s\) failed:	reproduce locally with the lint command in /ci-triage's ## This repo
 #Gitleaks scan	secret-leak	-	rotate the credential first; never delete, allowlist or hide the finding
 #Install*	toolchain-fail	-	setup, not this repo's code: check upstream, and re-run before changing anything
+
+Check version parity	version-parity-fail	-	Directory.Build.props and build.yaml disagree: set both with scripts/set-version.sh, never hand-edit one
+Setup .NET	toolchain-fail	-	setup, not this repo's code: check global.json's SDK pin, and re-run before changing anything
+Restore	toolchain-fail	-	setup, not this repo's code: check global.json's SDK pin, and re-run before changing anything
+Build	build-fail	-	analyzers and StyleCop are errors here, and the log names the file and the rule: the SDK container build in docs/dev/README.md reproduces it
+Test	test-fail	-	the test project in the SDK container (docs/dev/README.md) reproduces it
+Resolve the supported server releases	toolchain-fail	-	it reads repo.jellyfin.org: a network failure is not this repo's code, so re-run
+Check the plugin binds to every supported server line	server-abi-fail	-	a problems line means that Jellyfin release would fail to load the plugin: scripts/check-server-abi.sh <version> reproduces it; never drop a server line to pass
+Check the plugin does not bind below the floor	server-abi-fail	-	the plugin now binds to 10.10.7, so the check has lost its proof that it can fail: find out why before changing the floor
+Validate PR title*	commit-style-fail	-	fix the title (gh pr edit --title), no code change
+Validate subjects of the pushed commits	commit-style-fail	-	scripts/lint-commit-subject.sh "<subject>" reproduces it; on main the commit is already pushed, so never rewrite history to fix it
+Validate changelog structure	changelog-fail	-	CHANGELOG.md is generated: fix the commit subject or the generator, never hand-edit it; scripts/changelog-validate.sh reproduces it
+Sync [Unreleased] from merged PRs	changelog-fail	-	CHANGELOG.md is generated: fix the commit subject or the generator, never hand-edit it; scripts/changelog-validate.sh reproduces it
+# release.yml and release-prepare.yml are not mapped: docs/dev/releasing.md has no recovery steps for a
+# half-finished release, so no banner can be backed yet. Their steps report unknown; add a line when one fails.

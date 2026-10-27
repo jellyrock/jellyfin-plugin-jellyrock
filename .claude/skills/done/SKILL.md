@@ -2,7 +2,7 @@
 name: done
 model: sonnet
 effort: low
-description: Mark journal work complete. It closes an existing followup by its fid, or an entry of one of this repo's own journal types. Companion to /log (which captures new entries; /done closes existing ones). Finds the entry, proves the work actually landed, then closes it through the journal script (the entry is removed; git is the history) and commits with the evidence and a Closes fid line. No confirm gate on a proven closure. Pure local-file edits, apart from read-only checks that the work landed. Use when the work an entry describes is committed on this branch (pushed or merged is not required, since the closure ships in the same change set) and its journal entry needs closing. Not for capturing new entries (use /log) and not for work that is still uncommitted, undeployed or partial (don't pre-mark optimistically).
+description: "Mark journal work complete: close a `docs/cursor.md` followup by its fid. Companion to /log. Finds the entry, proves the work landed, then closes it through the journal script (the entry is removed; git is the history) and commits with the evidence and a Closes fid line. No confirm gate on a proven closure. Use when the work an entry describes is committed on this branch (pushed or merged is not required). Not for capturing new entries (use /log) and not for work still uncommitted, undeployed or partial."
 ---
 
 # /done: mark journal work complete

@@ -2,7 +2,7 @@
 name: start-project
 model: opus
 effort: medium
-description: This skill should be used only when the user explicitly types "/start-project" (optionally with a slug). It begins a new tracked project in the projects folder (docs/projects/ by default). It scaffolds a PLAN.md from the template, indexes it in the projects README, and walks the user through the Charter. Do not auto-invoke on vague phrases like "let's start something".
+description: This skill should be used only when the user explicitly types "/start-project" (optionally with a slug). It begins a new tracked project in the projects folder, which lives outside this repo (`docs/projects/` is gitignored; `projects-dir.sh` prints where). It scaffolds a PLAN.md from the template, indexes it in the projects README, and walks the user through the Charter. Do not auto-invoke on vague phrases like "let's start something".
 ---
 
 # Start Project
