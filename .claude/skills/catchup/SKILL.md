@@ -3,7 +3,7 @@ name: catchup
 model: sonnet
 effort: low
 audit-span: read-only
-description: Daily-ritual state load at the start of a working session. It surfaces where you left off, what's in flight, what's queued, what's on fire, and the one next move. One tested script reads git, the journal (followup counts, in-flight work, cadences), the tracked projects and this repo's own reader (pipelines, CI, deploys), and prints every check that fires as one ranked list whose first line is the next move. Use at the start of a genuine new session, after a multi-day gap, or whenever you ask "what's going on?" Distinct from any weekly / period-digest skill (this is a one-shot daily load, not a comparative summary), from /resume-project (depth on one project, not breadth), from /focus (which picks and routes the next move; this only briefs) and from any scoped triage skill (this is global, not anchored to a specific alert or area).
+description: "Session-start briefing for this plugin repo: where you left off, what is in flight, what is queued, and the one next move. One tested script reads git, `docs/cursor.md` (open followups, in-flight work, cadences) and the tracked projects, and prints every check that fires as one ranked list whose first line is the next move. Use at the start of a new session, after a multi-day gap, or whenever you ask what's going on. Distinct from /resume-project (depth on one project), from /focus (which picks and routes the next move; this only briefs) and from /ci-triage or /issue-triage (anchored to one run or one issue)."
 ---
 
 # /catchup: daily-ritual state load

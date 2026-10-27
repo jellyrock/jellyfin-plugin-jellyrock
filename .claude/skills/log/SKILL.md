@@ -2,7 +2,7 @@
 name: log
 model: sonnet
 effort: low
-description: Single-entry-point capture for any journal write this repo keeps. Its types are `followup` (universal, mechanical) and `decision` (universal, agent-gated) plus any domain-specific types (backlog rows, signals, etc.), and `message`, a note left in another repo's mailbox. Routes by the first argument. A followup goes through the journal script (an entry with a stable fid, never a numbered bullet). `decision` is agent-classified. The agent drafts, applies a significance gate (architectural / hard-to-reverse / cross-component?), routes it (numbered ADR vs. the tracked project's decision list vs. decline-as-trivia), and shows a diff-and-confirm before writing, with one-tap human override. Pure local-file edits, standalone path-restricted commit. Use when you have something to write down, such as a followup for next session or a decision you have made. Not for status flips on existing entries (use /done) and not for half-formed thoughts (refine first, /log once the shape is clear).
+description: "Single entry point for this repo's journal writes. `followup` adds an entry with a permanent fid to `docs/cursor.md` through the journal script. `decision` is agent-gated: ADR-grade becomes a numbered record in `docs/adr/`, a decision inside a tracked project goes to its PLAN's decision list, trivia is declined, and the routing is shown as a diff to confirm. `message` leaves a note in another repo's mailbox. Routes by the first argument and commits only its own paths. Use when you have something to write down. Not for closing an entry (use /done) and not for half-formed thoughts (refine first)."
 ---
 
 # /log: single-entry-point capture

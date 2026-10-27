@@ -3,7 +3,7 @@ name: resume-project
 model: sonnet
 effort: low
 audit-span: read-only
-description: This skill should be used only when the user explicitly types "/resume-project" (optionally with a slug). It loads an existing tracked project in the projects folder (docs/projects/ by default) and the surrounding context so work can continue cleanly, using the project's Next-session kickoff as the starting prompt. Do not auto-invoke when the user merely opens the repo or mentions past work.
+description: This skill should be used only when the user explicitly types "/resume-project" (optionally with a slug). It loads an existing tracked project in the projects folder, which lives outside this repo (`docs/projects/` is gitignored; `projects-dir.sh` prints where) and the surrounding context so work can continue cleanly, using the project's Next-session kickoff as the starting prompt. Do not auto-invoke when the user merely opens the repo or mentions past work.
 ---
 
 # Resume Project
