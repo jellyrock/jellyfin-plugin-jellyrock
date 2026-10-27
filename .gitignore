@@ -9,3 +9,15 @@ pages/
 
 # Ad-hoc local `dotnet publish` output
 coldcast-publish/
+
+# Claude Code: per-user and transient files stay local; shared skills and rules are tracked
+.claude/settings.local.json
+.claude/worktrees/
+.claude/plans/
+
+# Project plans are local agent continuity, kept outside the repo
+docs/projects/
+
+# Editor: only the shared extension recommendations are tracked
+.vscode/*
+!.vscode/extensions.json

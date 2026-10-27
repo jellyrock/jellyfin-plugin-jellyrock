@@ -1,0 +1,21 @@
+# gates.tsv — this repo's CI steps, for /ci-triage's ci-triage-state.sh. The repo's own file.
+#
+# One line per gate, columns separated by a single tab:
+#   <step pattern>  <category>  <sub-check pattern, or ->  <banner, optional>
+#
+# step pattern       a shell glob matched against the failed step's name as the run shows it
+#                    (`gh run view <id> --json jobs`), e.g. Run lint suite, Install*
+# category           a short word for the kind of failure: lint-fail, build-fail, test-fail,
+#                    secret-leak, toolchain-fail, ... The first matching line wins.
+# sub-check pattern  for a step that wraps several checks: an extended regex the step's log ends
+#                    with before the name of the check that failed; the text after its last match
+#                    is reported as the sub-check. - when the step runs one check.
+# banner             one line printed as BANNER: when the obvious fix is the wrong one (a secret
+#                    finding: rotate the credential first; a security baseline: never extend it
+#                    just to turn the gate green).
+#
+# A step no line matches is reported unknown, with a request to add its line here.
+# Examples (remove the leading # and adapt):
+#Run lint suite	lint-fail	[0-9]+ check\(s\) failed:	reproduce locally with the lint command in /ci-triage's ## This repo
+#Gitleaks scan	secret-leak	-	rotate the credential first; never delete, allowlist or hide the finding
+#Install*	toolchain-fail	-	setup, not this repo's code: check upstream, and re-run before changing anything

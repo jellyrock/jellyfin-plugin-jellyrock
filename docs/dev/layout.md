@@ -1,8 +1,9 @@
 # Repo layout
 
 ```text
+AGENTS.md                             # agent guide (conventional commits, don't hand-edit CHANGELOG)
 CHANGELOG.md                          # Keep a Changelog; auto-generated from commit subjects
-CLAUDE.md                             # agent guide (conventional commits, don't hand-edit CHANGELOG)
+CLAUDE.md                             # symlink to AGENTS.md
 Directory.Build.props                 # assembly <Version> (kept in lockstep with build.yaml)
 global.json                           # .NET SDK pin; CI reads it, Renovate updates it
 renovate.json                         # dependency updates: org preset + this repo's overrides

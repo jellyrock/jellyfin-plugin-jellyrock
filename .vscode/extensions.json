@@ -1,0 +1,7 @@
+{
+  "// What this is": "VS Code suggests these extensions on first workspace open. Tracked in git so markdown linting behaves identically across machines — pairs with the root .markdownlint.jsonc (house-style rule tuning). With that config, the extension surfaces only the rules we actually enforce.",
+  "recommendations": [
+    "davidanson.vscode-markdownlint"
+  ],
+  "unwantedRecommendations": []
+}
