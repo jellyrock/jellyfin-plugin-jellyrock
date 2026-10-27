@@ -1,0 +1,88 @@
+{
+  // markdownlint config — house-style tuning + ignores in one file.
+  //
+  // This is the .markdownlint-cli2.jsonc form on purpose: it is honored by BOTH
+  // the davidanson.vscode-markdownlint extension AND the markdownlint-cli2 CLI, so
+  // the editor and any CLI/CI agree from a single source of truth. (The split
+  // .markdownlint.jsonc + .markdownlintignore pair does NOT work — cli2 ignores
+  // the .markdownlintignore file, so archives/fixtures leak back in.)
+  //
+  // Editor-only today — deliberately NOT wired into CI. Its job is to remove
+  // editor noise, not to gate PRs.
+  //
+  // Philosophy: keep defaults ON (so genuinely useful rules — and any new rule a
+  // markdownlint upgrade adds — keep protecting us), then DISABLE only the rules
+  // that fight a deliberate house convention, each with its reason. This disable
+  // list IS the documentation of our style exceptions; everything not listed stays
+  // enforced — and the value of `default: true` is exactly that: dozens of
+  // real-defect rules we simply never trip (reversed-link syntax, empty links,
+  // broken reference definitions, hard tabs, trailing spaces, malformed ATX
+  // headings, …) stay silently active at zero cost. Of the rules that DO fire on
+  // our docs we enforce only the two that catch a real defect cheaply —
+  // trailing-newline (MD047, clean diffs) and table-column-count (MD056, a row
+  // with the wrong cell count). Fix those; don't silence them.
+
+  "config": {
+    "default": true,
+
+    // Long-form prose is intentional (audience-driven-formatting rule): flowing
+    // paragraphs, never hard-wrapped — a line-length cap fights that head-on.
+    "MD013": false, // line-length
+
+    // Dense layout: we omit the cosmetic blank lines these want around headings /
+    // lists / fences / tables, and run compact tables + `**Lead.**` paragraph heads.
+    "MD022": false, // blanks-around-headings
+    "MD031": false, // blanks-around-fences
+    "MD032": false, // blanks-around-lists  (the `**Header:**`-then-list pattern)
+    "MD058": false, // blanks-around-tables
+    "MD012": false, // no-multiple-blanks
+
+    // Tables: compact `|---|` separators, no enforced leading/trailing pipe style.
+    "MD060": false, // table-column-style
+    "MD055": false, // table-pipe-style
+
+    // Headings / emphasis conventions: frontmatter precedes the first heading;
+    // `**Bold lead-ins.**` act as inline sub-headers (the Contract `**Goal.**`
+    // style); section names + emphasis markers (`*` and `_`) repeat by design.
+    "MD025": false, // single-title  (frontmatter + a `#` title both present)
+    "MD041": false, // first-line-heading  (frontmatter is line 1, not a heading)
+    "MD036": false, // no-emphasis-as-heading  (`**Parallel options:**` leads)
+    "MD024": false, // no-duplicate-heading  (repeated `## Why` / dated sections)
+    "MD026": false, // trailing-punctuation in headings
+    "MD049": false, // emphasis-style  (`*italic*` and `_italic_` both used)
+
+    // List / inline markup we don't standardize:
+    "MD004": false, // ul-style  (bullet character)
+    "MD007": false, // ul-indent
+    "MD029": false, // ol-prefix  (ordered-list numbering style)
+    "MD033": false, // no-inline-html  (occasional <br>/<details>/<sub> in docs)
+    "MD038": false, // no-space-in-code-span
+    "MD028": false, // no-blanks-blockquote  (multi-paragraph `>` callouts)
+
+    // Real-ish rules whose value doesn't justify the cost on THIS corpus
+    // (disabled deliberately, not house-style — see the kept-rules note above):
+    "MD040": false, // fenced-code-language — our fences are ~90% diagrams / trees /
+                    //   logs / sample-output, so this is mostly `text`-tagging
+                    //   busywork; tag genuine code blocks by habit instead.
+    "MD034": false  // no-bare-urls — forgejo/GitHub autolink bare URLs already, so
+                    //   this is stylistic friction, not a defect catch.
+  },
+
+  // Run with a bare `markdownlint-cli2` (no args): lint all markdown except the
+  // paths below. NOT authored prose — linting/"fixing" them is wrong:
+  //   node_modules  vendored.
+  //   _archive/     immutable historical PLANs/ADRs — superseded-not-edited.
+  //   effort-fixtures f*/  frozen ground-truth fixtures (captured skill outputs,
+  //                 incl. deliberately anonymized values) — editing corrupts the
+  //                 test data the model is judged against.
+  // Skip every gitignored path: local-only agent continuity (a public repo's docs/projects/)
+  // and build output are never committed, so a style nit there must not fail anything.
+  "gitignore": true,
+
+  "globs": ["**/*.md"],
+  "ignores": [
+    "**/node_modules/**",
+    "**/_archive/**",
+    "**/effort-fixtures/*/f*/**"
+  ]
+}
