@@ -55,6 +55,7 @@ none
 - The test project in the SDK container (the `docker run … dotnet test` command in [docs/dev/README.md](docs/dev/README.md#test)): the floor after any code change. CI's **Build + test** job runs the same tests.
 - `scripts/check-server-abi.sh`: the plugin still binds to every supported Jellyfin server line. Run it after a change to which server types or members the plugin uses.
 - `scripts/lint-commit-subject.sh "<subject>"`: every commit subject and PR title, before committing.
+- `bash .claude/skills/log/voice-check.sh [<file.md>…]`: the house voice of `.claude/rules/writing-style.md`, per tracked Markdown file against `.voice-baseline.tsv` (a file may only go down). Run it after editing Markdown; CI's **House voice** job runs it on every file. Reword a new hit, never raise the baseline; `--lower` locks in a file's gain.
 - Never edit `CHANGELOG.md` to make a check pass: it is regenerated from commit subjects.
 
 ### Plan path
