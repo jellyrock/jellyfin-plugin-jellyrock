@@ -21,6 +21,7 @@
 #Install*	toolchain-fail	-	setup, not this repo's code: check upstream, and re-run before changing anything
 
 Check version parity	version-parity-fail	-	Directory.Build.props and build.yaml disagree: set both with scripts/set-version.sh, never hand-edit one
+Check the house voice	voice-fail	-	a new hit in a Markdown file: reword it, never raise .voice-baseline.tsv; bash .claude/skills/log/voice-check.sh <file> reproduces it
 Setup .NET	toolchain-fail	-	setup, not this repo's code: check global.json's SDK pin, and re-run before changing anything
 Restore	toolchain-fail	-	setup, not this repo's code: check global.json's SDK pin, and re-run before changing anything
 Build	build-fail	-	analyzers and StyleCop are errors here, and the log names the file and the rule: the SDK container build in docs/dev/README.md reproduces it

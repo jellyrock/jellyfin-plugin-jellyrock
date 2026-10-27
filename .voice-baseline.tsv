@@ -1,0 +1,17 @@
+# voice-check baseline: the most house-voice hits each Markdown file may have, per category.
+# Lines are path<TAB>category<TAB>count, sorted. A file may only go down (a ratchet); a file or
+# category absent here is allowed zero. Flags: --init writes this file once; --lower lowers it.
+AGENTS.md	em-dash	5
+AGENTS.md	filler	1
+AGENTS.md	prose-arrow	5
+CLAUDE.md	em-dash	5
+CLAUDE.md	filler	1
+CLAUDE.md	prose-arrow	5
+README.md	filler	1
+docs/dev/contributing.md	em-dash	7
+docs/dev/contributing.md	filler	1
+docs/dev/contributing.md	prose-arrow	3
+docs/dev/releasing.md	em-dash	2
+docs/dev/releasing.md	prose-arrow	4
+docs/features/playback-cleanup.md	filler	1
+docs/features/remote-control.md	em-dash	1

@@ -25,6 +25,18 @@ jobs:
       - name: Check version parity
         run: ./scripts/check-version-parity.sh
 
+  house-voice:
+    name: House voice
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Each tracked Markdown file may only lose hits against .voice-baseline.tsv
+      # (.claude/rules/writing-style.md). Needs only bash and git.
+      - name: Check the house voice
+        run: bash .claude/skills/log/voice-check.sh
+
   build-test:
     name: Build + test
     runs-on: ubuntu-latest
