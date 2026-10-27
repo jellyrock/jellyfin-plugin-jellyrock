@@ -44,7 +44,7 @@ jobs:
       # A published release never changes, so the cache is keyed on the release list:
       # it is saved again only when Jellyfin ships a release.
       - name: Cache Jellyfin releases
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/jellyfin-plugin-jellyrock/servers
           key: jellyfin-servers-${{ steps.servers.outputs.key }}
