@@ -39,8 +39,9 @@
 # Usage (from inside the repo):
 #   bash .claude/skills/resume-project/resume-state.sh [<slug> [<starting point>…]]
 #       the resume read. <slug> is a project's short slug (hub) or its whole folder name (2026-10-hub), which picks that folder alone. Words after the slug are where this session starts instead of the
-#       kickoff's Starts at: one open followup's fid (optionally fid:<fid>) is shown in full;
-#       anything else is the operator's words.
+#       kickoff's Starts at: one open followup's fid (optionally fid:<fid>), or one open work request
+#       part's id naming this repo (optionally request:<id>), is shown in full; an id that is both is
+#       said, to ask which; anything else is the operator's words.
 #   … --check [<slug>]     the PLAN check alone: FAIL lines exit 1; REVIEW lines ask the writer to
 #                          justify something (a landmine dropped since the last commit); NOTEs inform
 #   … --release [<slug>]   remove this session's claim (another session's is left alone). Like a
@@ -823,6 +824,23 @@ if [ -n "$m_out" ]; then
   tagged mailbox "$m_out"
 fi
 
+# The work request parts naming this repo about this project (ADR 0012 item 3): another repo decided
+# each change, so the banner says to make it or decline it, not to weigh it as a message. A backend
+# from before `requests` exits 2: one NOTE.
+r_out=""; r_none=0
+if [ -f "$here/../start-project/mailbox.sh" ]; then
+  r_out="$(bash "$here/../start-project/mailbox.sh" requests --project "$name" 2>/dev/null </dev/null)" \
+    || { [ $? != 2 ] || r_none=1; r_out=""; }
+fi
+if [ -n "$r_out" ] || [ "$r_none" = 1 ]; then
+  section "REQUESTS"
+  [ "$r_none" = 0 ] || echo "NOTE: the mailbox script has no requests: work requests are not listed; update the global setup"
+  if [ -n "$r_out" ]; then
+    echo "BANNER: $(grep -c . <<<"$r_out") open work request part(s) from other repos about this project: another repo decided each change. Read each (bash .claude/skills/start-project/mailbox.sh requests show {{id}}) before starting; make the change, or decline it with a reason, and close it with /done request {{id}}"
+    tagged request "$r_out"
+  fi
+fi
+
 section "PLAN — STATUS"
 # Printed in full whatever its size (its blockers are at the end), but an overgrown one is flagged:
 # past about 15KB it costs every resume more than the rest of the read does.
@@ -844,15 +862,27 @@ fi
 
 if [ -n "$start" ]; then
   section "START (from the arguments: this session starts here; the kickoff below is context)"
-  if [[ "$start" =~ ^(fid:)?[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
-    f="${start#fid:}"
-    if [ ! -f "$journal" ]; then echo "NOTE: no journal.sh beside this skill: '$start' is taken as words"; tagged operator_words "$start"
-    elif msg="$(bash "$journal" show "$f" 2>&1)"; then echo "fid: $f"; tagged followup "$msg"
+  if [[ "$start" =~ ^(fid:|request:)?[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+    # one id: an open followup, or an open work request part naming this repo (ADR 0012 item 5);
+    # fid: or request: picks one kind, and a bare id that is both is said and asked about
+    f="${start#fid:}"; f="${f#request:}"; want=both
+    case "$start" in fid:*) want=fid ;; request:*) want=request ;; esac
+    mbox="$here/../start-project/mailbox.sh"; isreq=0; fok=1; msg=""
+    if [ "$want" != fid ] && [ -f "$mbox" ] && bash "$mbox" requests --tsv 2>/dev/null </dev/null \
+      | awk -F'\t' -v id="$f" '$1 == id "" { found = 1 } END { exit !found }'; then isreq=1; fi
+    if [ "$want" != request ] && [ -f "$journal" ]; then msg="$(bash "$journal" show "$f" 2>&1)"; fok=$?; fi
+    if [ "$isreq" = 1 ] && [ "$fok" = 0 ]; then
+      echo "NOTE: '$f' is both an open followup and an open work request part for this repo: ask the operator which they meant (fid:$f or request:$f)"
+      tagged operator_words "$start"
+    elif [ "$isreq" = 1 ]; then echo "request: $f"; tagged request "$(bash "$mbox" requests show "$f" 2>/dev/null </dev/null)"
+    elif [ "$want" = request ]; then echo "NOTE: '$f' is no open work request part for this repo: taken as the operator's words"; tagged operator_words "$start"
+    elif [ ! -f "$journal" ]; then echo "NOTE: no journal.sh beside this skill: '$start' is taken as words"; tagged operator_words "$start"
+    elif [ "$fok" = 0 ]; then echo "fid: $f"; tagged followup "$msg"
     elif [[ "$msg" == *"is not open"* ]]; then
       echo "NOTE: followup '$f' is closed: ${msg#*: }"
       c="${msg##* commit }"; c="${c%% *}"; git log -1 --format='  %h %s' "$c" 2>/dev/null
       tagged operator_words "$start"
-    else echo "NOTE: '$start' is not an open followup: taken as the operator's words"; tagged operator_words "$start"; fi
+    else echo "NOTE: '$start' is not an open followup, nor an open work request part for this repo: taken as the operator's words"; tagged operator_words "$start"; fi
   else tagged operator_words "$start"; fi
 fi
 
