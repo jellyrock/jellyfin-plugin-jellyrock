@@ -11,7 +11,16 @@
       "Bash(bash .claude/skills/pr/forge.sh pr commits:*)",
       "Bash(bash .claude/skills/pr/forge.sh issue view:*)",
       "Bash(bash .claude/skills/pr/forge.sh issue list:*)",
-      "Bash(bash .claude/skills/pr/forge.sh label list:*)"
+      "Bash(bash .claude/skills/pr/forge.sh label list:*)",
+      "Bash(bash .claude/skills/resume-project/resume-state.sh:*)",
+      "Bash(bash .claude/skills/catchup/catchup-state.sh:*)",
+      "Bash(bash .claude/skills/end-session/move-old-decisions.sh:*)",
+      "Bash(bash .claude/skills/sonnet/plan-run.sh:*)",
+      "Bash(bash .claude/skills/second-opinion/review-run.sh:*)",
+      "Bash(bash .claude/skills/log/journal.sh show:*)",
+      "Bash(bash .claude/skills/log/journal.sh list:*)",
+      "Bash(bash .claude/skills/log/journal.sh check:*)",
+      "Bash(bash .claude/skills/log/journal.sh stats:*)"
     ]
   }
 }
