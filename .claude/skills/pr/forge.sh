@@ -17,6 +17,8 @@
 #     on every backend; a text verb prints one value (a branch, a login, a URL, a log).
 #   * The forge's own error message reaches stderr whole. Nothing is silenced.
 #   * Write verbs take --body-file, never an inline body.
+#   * `pr view` without a number also reads git (and the forge's default branch and the PR's
+#     commit list when git cannot decide), to tell the branch's own PR from an old one that only shares its name.
 #
 # Exit codes:
 #   0  done
@@ -25,7 +27,8 @@
 #   2  usage: an unknown verb or flag, a missing or bad argument, a body file that does not exist
 #   3  no `### Forge` slot, no backend: in it, a backend it does not know, not in a git repo, or
 #      (forgejo) no origin remote to read the host and repo from
-#   4  `pr view` only: the branch has no pull request
+#   4  `pr view` only: the branch has no pull request (a merged or closed PR that only shares the
+#      branch's name, because none of its commits are this branch's own, counts as none)
 #   5  the verb is not available on this backend
 #
 # Usage: bash forge.sh <noun> <verb> [args]      bash forge.sh --help      bash forge.sh <noun> <verb> --help
@@ -50,7 +53,7 @@ SPEC="repo default-branch;;text: the branch name;The repo's default branch.
 repo file-url;<path>;text: the URL;The web URL of <path> (a file path from the repo root) on the repo's default branch.
 repo merge-settings;;JSON: squash_merge_commit_title, squash_merge_commit_message;What a squash merge keeps (empty without enough rights on the repo).
 user login;;text: the login;The account this session acts as.
-pr view;[<N>];JSON: $F_PR_VIEW;PR <N>, or the current branch's PR; exit 4 when the branch has none.
+pr view;[<N>];JSON: $F_PR_VIEW;PR <N>, or the current branch's PR. Exit 4 when the branch has none, or only a merged or closed PR that shares just its name.
 pr comments;<N>;JSON: comments;The PR's comments.
 pr commits;<N>;JSON: commits;The PR's commits.
 pr list;[--state open|closed|merged|all] [--search <q>] [--limit <n>];JSON: $F_PR_LIST;PRs matching a search.
@@ -225,6 +228,61 @@ case "$backend" in
   *) die 3 "unknown backend '$backend' in the ### Forge slot of $facts: use github or forgejo" ;;
 esac
 
+# ------------------------------------------------------- a PR that only shares the branch's name
+# A branch recreated under a merged PR's name (a project's worktree-<slug> branch, after the first PR
+# merged and its branch was deleted) finds that old PR by name. reused_name tells it from the
+# branch's own PR; pr_by_name acts on the answer for a pr view without a number. read_default_branch
+# and read_pr_commits are each backend's own, defined below.
+# commits_here <number>: 0 when a commit of the PR is in this branch and not on the default branch, 1
+# when none is, 2 when the forge could not be read (its message is on stderr). It decides a PR whose
+# head commit this clone never fetched: the PR's earlier commits may still be the branch's.
+commits_here() {
+  local list trunk oid ref=""
+  list="$(read_pr_commits "$1")" || return 2
+  trunk="$(read_default_branch)" || return 2
+  git rev-parse -q --verify "refs/remotes/origin/$trunk" >/dev/null 2>&1 && ref="refs/remotes/origin/$trunk"
+  while IFS= read -r oid; do
+    [ -n "$oid" ] || continue
+    git cat-file -e "$oid^{commit}" 2>/dev/null || continue
+    git merge-base --is-ancestor "$oid" HEAD 2>/dev/null || continue
+    if [ -n "$ref" ] && [ -z "$(git rev-list -1 "$oid" --not "$ref" 2>/dev/null)" ]; then continue; fi
+    return 0
+  done <<<"$list"
+  return 1
+}
+# reused_name <state> <head sha> <number>: 0 when the PR only shares the name, 1 when it is this
+# branch's, 2 when the forge could not be read (its message is on stderr).
+reused_name() {
+  local pst="$1" phead="$2" dflt rc
+  [ "$pst" = OPEN ] && return 1
+  [ -n "$phead" ] || return 1
+  [ "$phead" = "$(git rev-parse HEAD 2>/dev/null)" ] && return 1
+  if ! git cat-file -e "$phead^{commit}" 2>/dev/null; then
+    commits_here "$3"; rc=$?
+    [ "$rc" = 0 ] && return 1
+    [ "$rc" = 2 ] && return 2
+    return 0
+  fi
+  git merge-base --is-ancestor "$phead" HEAD 2>/dev/null || return 0
+  dflt="$(read_default_branch)" || return 2
+  git rev-parse -q --verify "refs/remotes/origin/$dflt" >/dev/null 2>&1 || return 1
+  # reached the default branch: this branch's own commits are new work
+  [ -z "$(git rev-list -1 "$phead" --not "refs/remotes/origin/$dflt" 2>/dev/null)" ] && return 0
+  return 1
+}
+# pr_by_name <number> <state> <url> <head sha>: returns when the PR is this branch's; otherwise says
+# why and exits 4 (no PR), or 1 when the forge could not be read
+pr_by_name() {
+  local rc
+  reused_name "$2" "$4" "$1"; rc=$?
+  case "$rc" in
+    0) printf 'PR #%s (%s, %s) only shares this branch'\''s name: none of its commits are this branch'\''s own, so the branch has no PR yet\n' "$1" "$2" "$3" >&2
+       printf 'no pull requests found for branch "%s"\n' "$(git branch --show-current)" >&2
+       exit 4 ;;
+    2) exit 1 ;;
+  esac
+}
+
 # --------------------------------------------------------------------------- Forgejo (curl + jq)
 # The API is https://<the origin remote's host>/api/v1, or the slot's api: line (the API root, for a
 # forge on another port, scheme or path). The token is a curl config file, passed to curl and never
@@ -333,6 +391,12 @@ if [ "$backend" = forgejo ]; then
   state='(if .state == "open" then "OPEN" else "CLOSED" end)'
   n="${pos[0]:-}"
   body_json() { jq -n --rawfile body "$opt_body_file" "$@"; }
+  read_default_branch() { fj GET "$rapi" && jq -r .default_branch "$resp"; }
+  # the PR's commit oids, one per line (the pages the pr commits verb reads)
+  read_pr_commits() {
+    JQ_ARGS=(); pages "$rapi/pulls/$1/commits?stat=false&files=false&verification=false&limit=50" 0 '[.[].sha]' \
+      && jq -r '.[]' "$tmp/list"
+  }
 
   case "$cmd" in
     "repo default-branch") fj GET "$rapi"; jq -r .default_branch "$resp" ;;
@@ -352,6 +416,10 @@ if [ "$backend" = forgejo ]; then
       pages "$rapi/pulls?state=open&limit=50" 0 "$mine"; found="$(jq -c 'max_by(.number) // empty' "$tmp/list")"
       if [ -z "$found" ]; then pages "$rapi/pulls?state=closed&limit=50" 0 "$mine"; found="$(jq -c 'max_by(.number) // empty' "$tmp/list")"; fi
       [ -n "$found" ] || { printf 'no pull requests found for branch "%s"\n' "$branch" >&2; exit 4; }
+      fields="$(jq -r "$prmap | [.state, (.headRefOid // \"\"), .number, .url] | map(tostring) | join(\"\\u001f\")" <<<"$found")" \
+        || die 1 "unreadable PR answer"
+      IFS=$'\037' read -r pst phead pnum purl <<<"$fields"
+      pr_by_name "$pnum" "$pst" "$purl" "$phead"
       jq -c "$prmap" <<<"$found" ;;
     "pr comments")  fj GET "$rapi/issues/$n/comments"; jq -c "{comments: $cmap}" "$resp" ;;
     "pr commits")
@@ -453,6 +521,8 @@ gh_run() {
 optional() { # <flag> <value>
   [ -z "$2" ] || extra+=("$1" "$2")
 }
+read_default_branch() { gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>"$err" || { cat "$err" >&2; return 1; }; }
+read_pr_commits() { gh pr view "$1" --json commits --jq '.commits[].oid' 2>"$err" || { cat "$err" >&2; return 1; }; }
 extra=()
 n="${pos[0]:-}"
 
@@ -464,7 +534,17 @@ case "$cmd" in
     printf '%s/%s\n' "$url" "$fpath" ;;
   "repo merge-settings") gh_run api 'repos/{owner}/{repo}' --jq '{squash_merge_commit_title, squash_merge_commit_message}' ;;
   "user login")          gh_run api user --jq .login ;;
-  "pr view")             gh_run pr view ${n:+"$n"} --json "$F_PR_VIEW" ;;
+  "pr view")
+    [ -z "$n" ] || gh_run pr view "$n" --json "$F_PR_VIEW"
+    # by the branch's name: gh's answer, unless that PR only shares the name (see pr_by_name)
+    out="$(gh pr view --json "$F_PR_VIEW" 2>"$err")"; rc=$?
+    cat "$err" >&2
+    if [ "$rc" != 0 ]; then grep -qi '^no pull requests found' "$err" && exit 4; exit 1; fi
+    if fields="$(jq -r '[.state, (.headRefOid // ""), .number, .url] | map(tostring) | join("\u001f")' <<<"$out" 2>/dev/null)"; then
+      IFS=$'\037' read -r pst phead pnum purl <<<"$fields"
+      pr_by_name "$pnum" "$pst" "$purl" "$phead"
+    fi
+    printf '%s\n' "$out"; exit 0 ;;
   "pr comments")         gh_run pr view "$n" --json comments ;;
   "pr commits")          gh_run pr view "$n" --json commits ;;
   "pr for-commit")
