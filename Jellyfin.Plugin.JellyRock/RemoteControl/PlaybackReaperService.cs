@@ -21,15 +21,15 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 /// reaper clears it, but only after a coarse ~5-10 minute check, leaving any active transcode running
 /// and the dashboard showing a phantom "now playing" until then.
 /// <para>
-/// This worker sweeps the session list on a short cadence and reaps a JellyRock session for one of the
-/// reasons <see cref="ReapDecision.Decide"/> gives: its app has closed its long poll, playing or paused;
-/// or the app never polled and its last real playback check-in (the client's ~10s
-/// <c>Sessions/Playing/Progress</c> report) has gone stale past <see cref="StaleThresholdSeconds"/> while
-/// playing. An open app (a fresh poll, or the server's own socket on HTTP) is never reaped. Reaping calls <see cref="ISessionManager.OnPlaybackStopped"/>,
-/// exactly as Jellyfin's own idle check does, so it frees any active transcode and clears the session
-/// through the normal path, just on a faster, purpose-built clock. See <see cref="ReapDecision"/> for the
-/// eligibility rule and the resume-position correction (which keeps the recorded resume point at the
-/// user's real stop rather than the server's forward-extrapolated one).
+/// This worker sweeps the session list on a short cadence and reaps a JellyRock session whose app has
+/// closed its long poll, playing or paused (<see cref="ReapDecision.Decide"/>). An open app (a fresh
+/// poll, or the server's own socket on HTTP) is never reaped, and neither is an app that never polled:
+/// it gives no sign it closed, so Jellyfin's own idle check handles it. Reaping calls
+/// <see cref="ISessionManager.OnPlaybackStopped"/>, exactly as Jellyfin's own idle check does, so it
+/// frees any active transcode and clears the session through the normal path, just on a faster,
+/// purpose-built clock. See <see cref="ReapDecision"/> for the eligibility rule and the resume-position
+/// correction (which keeps the recorded resume point at the user's real stop rather than the server's
+/// forward-extrapolated one).
 /// </para>
 /// <para>
 /// The same sweep takes a closed JellyRock app out of its SyncPlay group
@@ -41,28 +41,8 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 public sealed class PlaybackReaperService : IHostedService, IDisposable
 {
     /// <summary>
-    /// Stale threshold, in seconds, for an app that never polls (<see cref="AppLiveness.Unknown"/>): an app
-    /// that polls is judged by its poll instead, so a polling app whose player hangs is left to the client's
-    /// own buffer-check stop (below) or Jellyfin's idle check. Six consecutive missed ~10s check-ins: a
-    /// decisive "the app is gone or hard-stalled" signal, ~5-8x faster than Jellyfin's built-in idle reap. A fixed constant, not
-    /// a setting — the plugin has no user-tunable configuration, and Jellyfin's own analogous idle
-    /// threshold is likewise hardcoded. The resume-position correction (see <see cref="ReapDecision"/>)
-    /// decouples resume accuracy from this value, so it is chosen purely for false-positive safety.
-    /// <para>
-    /// A mid-playback buffer is NOT a false positive: verified against the JellyRock client, the ~10s
-    /// report timer keeps firing while buffering (only pause/stop/finished/error stop it), so a
-    /// transiently-stalled-but-alive session keeps checking in and is never reaped; and a non-progressing
-    /// stall is escalated by the client's own buffer-check to a self-reported stop within ~30s. This
-    /// threshold therefore only elapses for a client that is genuinely unreachable — the correct case to
-    /// reap — which is also why 60s is safe rather than aggressive.
-    /// </para>
-    /// </summary>
-    private const int StaleThresholdSeconds = 60;
-
-    /// <summary>
-    /// Sweep cadence, in seconds. Every action lands at most one sweep after its condition holds: a
-    /// check-in reap after <c>StaleThresholdSeconds</c>, and a closed-app reap and a SyncPlay leave a few
-    /// seconds after the app closes its poll, which is why the sweep is short. A whole-list scan is negligible, so, unlike
+    /// Sweep cadence, in seconds. A closed-app reap and a SyncPlay leave land a few seconds after the app
+    /// closes its poll, which is why the sweep is short. A whole-list scan is negligible, so, unlike
     /// Jellyfin's SessionManager, this worker does not start and stop the timer with playback.
     /// </summary>
     private const int SweepIntervalSeconds = 5;
@@ -91,8 +71,7 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "[JellyRock] playback reaper starting; stale threshold {Threshold}s, sweep every {Interval}s",
-            StaleThresholdSeconds,
+            "[JellyRock] playback reaper starting; sweep every {Interval}s",
             SweepIntervalSeconds);
 
         _timer = new PeriodicTimer(TimeSpan.FromSeconds(SweepIntervalSeconds));
@@ -154,15 +133,7 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
             LeaveSyncPlayGroupIfClosed(session, controller, liveness);
 
             var isPaused = session.PlayState?.IsPaused ?? false;
-            var reason = ReapDecision.Decide(
-                session.Client,
-                session.ApplicationVersion,
-                session.NowPlayingItem is not null,
-                isPaused,
-                liveness,
-                session.LastPlaybackCheckIn,
-                now,
-                StaleThresholdSeconds);
+            var reason = ReapDecision.Decide(session.Client, session.NowPlayingItem is not null, liveness);
             if (reason == ReapReason.None)
             {
                 continue;
