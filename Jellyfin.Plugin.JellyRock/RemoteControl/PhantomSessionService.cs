@@ -36,7 +36,7 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 ///     wake while open (see <see cref="PhantomSessionController"/>).</item>
 /// </list>
 ///
-/// <para><b>Reaper-safe.</b> A phantom has no <c>NowPlayingItem</c>, and <see cref="ReapDecision.IsReapable"/>
+/// <para><b>Reaper-safe.</b> A phantom has no <c>NowPlayingItem</c>, and <see cref="ReapDecision.Decide"/>
 /// gates on <c>hasNowPlaying</c>, so <see cref="PlaybackReaperService"/> can never reap it. A <b>revoked</b>
 /// phantom (Roku powered off / paired-out) simply stops being refreshed and idle-expires through Jellyfin's
 /// own path.</para>

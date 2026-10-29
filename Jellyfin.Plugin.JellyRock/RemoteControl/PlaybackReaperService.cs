@@ -21,13 +21,11 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 /// reaper clears it, but only after a coarse ~5-10 minute check, leaving any active transcode running
 /// and the dashboard showing a phantom "now playing" until then.
 /// <para>
-/// This worker sweeps the session list on a short cadence and reaps any JellyRock session whose app
-/// has closed its long poll (<see cref="ReapDecision.IsClosedAppReapable"/>), playing or paused, and any
-/// that is actively playing but whose last real playback check-in (the client's ~10s <c>Sessions/Playing/Progress</c>
-/// report) has gone stale past <see cref="StaleThresholdSeconds"/>. The check-in signal is plain REST,
-/// so the mechanism itself is transport-agnostic; in practice it only fires on HTTPS, since on HTTP the
-/// native session socket has already removed the closed-app session before this window elapses (so it
-/// also stays a harmless safety net there). Reaping calls <see cref="ISessionManager.OnPlaybackStopped"/>,
+/// This worker sweeps the session list on a short cadence and reaps a JellyRock session for one of the
+/// reasons <see cref="ReapDecision.Decide"/> gives: its app has closed its long poll, playing or paused;
+/// or the app never polled and its last real playback check-in (the client's ~10s
+/// <c>Sessions/Playing/Progress</c> report) has gone stale past <see cref="StaleThresholdSeconds"/> while
+/// playing. An open app (a fresh poll, or the server's own socket on HTTP) is never reaped. Reaping calls <see cref="ISessionManager.OnPlaybackStopped"/>,
 /// exactly as Jellyfin's own idle check does, so it frees any active transcode and clears the session
 /// through the normal path, just on a faster, purpose-built clock. See <see cref="ReapDecision"/> for the
 /// eligibility rule and the resume-position correction (which keeps the recorded resume point at the
@@ -43,8 +41,10 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 public sealed class PlaybackReaperService : IHostedService, IDisposable
 {
     /// <summary>
-    /// Stale threshold, in seconds. Six consecutive missed ~10s check-ins: a decisive "the app is gone
-    /// or hard-stalled" signal, ~5-8x faster than Jellyfin's built-in idle reap. A fixed constant, not
+    /// Stale threshold, in seconds, for an app that never polls (<see cref="AppLiveness.Unknown"/>): an app
+    /// that polls is judged by its poll instead, so a polling app whose player hangs is left to the client's
+    /// own buffer-check stop (below) or Jellyfin's idle check. Six consecutive missed ~10s check-ins: a
+    /// decisive "the app is gone or hard-stalled" signal, ~5-8x faster than Jellyfin's built-in idle reap. A fixed constant, not
     /// a setting — the plugin has no user-tunable configuration, and Jellyfin's own analogous idle
     /// threshold is likewise hardcoded. The resume-position correction (see <see cref="ReapDecision"/>)
     /// decouples resume accuracy from this value, so it is chosen purely for false-positive safety.
@@ -61,8 +61,8 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
 
     /// <summary>
     /// Sweep cadence, in seconds. Every action lands at most one sweep after its condition holds: a
-    /// playback reap after <c>StaleThresholdSeconds</c>, and a SyncPlay leave a few seconds after the app
-    /// closes its poll, which is why the sweep is short. A whole-list scan is negligible, so, unlike
+    /// check-in reap after <c>StaleThresholdSeconds</c>, and a closed-app reap and a SyncPlay leave a few
+    /// seconds after the app closes its poll, which is why the sweep is short. A whole-list scan is negligible, so, unlike
     /// Jellyfin's SessionManager, this worker does not start and stop the timer with playback.
     /// </summary>
     private const int SweepIntervalSeconds = 5;
@@ -137,7 +137,7 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
 
     /// <summary>
     /// Scans the current sessions once: takes every closed JellyRock app out of its SyncPlay group, and
-    /// reaps every JellyRock session eligible per <see cref="ReapDecision.IsReapable"/>. Internal so the
+    /// reaps every JellyRock session <see cref="ReapDecision.Decide"/> gives a reason for. Internal so the
     /// test project can drive one sweep directly without the timer.
     /// </summary>
     /// <returns>A task that completes when the sweep finishes.</returns>
@@ -147,28 +147,23 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
 
         foreach (var session in _sessionManager.Sessions)
         {
-            LeaveSyncPlayGroupIfClosed(session);
+            // Read once, so the leave and the reap judge the same moment: the poll window is time based.
+            var controller = session.SessionControllers.OfType<QueueingSessionController>().FirstOrDefault();
+            var liveness = ReapDecision.ReadLiveness(controller?.HasPolled ?? false, PhantomSessionService.IsAppOpen(session));
+
+            LeaveSyncPlayGroupIfClosed(session, controller, liveness);
 
             var isPaused = session.PlayState?.IsPaused ?? false;
-            var hasNowPlaying = session.NowPlayingItem is not null;
-            var queueing = session.SessionControllers.OfType<QueueingSessionController>().FirstOrDefault();
-            var appOpen = PhantomSessionService.IsAppOpen(session);
-            var closedApp = queueing is not null
-                && ReapDecision.IsClosedAppReapable(
-                    session.Client,
-                    hasNowPlaying,
-                    queueing.HasPolled,
-                    appOpen);
-            if (!closedApp
-                && !ReapDecision.IsReapable(
-                    session.Client,
-                    session.ApplicationVersion,
-                    hasNowPlaying,
-                    isPaused,
-                    appOpen,
-                    session.LastPlaybackCheckIn,
-                    now,
-                    StaleThresholdSeconds))
+            var reason = ReapDecision.Decide(
+                session.Client,
+                session.ApplicationVersion,
+                session.NowPlayingItem is not null,
+                isPaused,
+                liveness,
+                session.LastPlaybackCheckIn,
+                now,
+                StaleThresholdSeconds);
+            if (reason == ReapReason.None)
             {
                 continue;
             }
@@ -197,31 +192,27 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
                 }).ConfigureAwait(false);
 
                 _logger.LogInformation(
-                    "[JellyRock] reaped idle playback session {SessionId} ({DeviceName}); resume set to {Ticks} ticks; app closed its poll: {AppClosed}",
+                    "[JellyRock] reaped playback session {SessionId} ({DeviceName}), reason {Reason}; resume set to {Ticks} ticks; app closed its poll: {PollClosed}",
                     session.Id,
                     session.DeviceName,
+                    reason,
                     correctedTicks,
-                    closedApp);
+                    controller?.PollClosedByClient ?? false);
             }
             catch (Exception ex)
             {
                 // One bad session must not abort the sweep (mirrors the server's per-session try/catch).
                 // Logged at Warning, not Debug: a reap that keeps failing is an operator-visible problem
                 // (a session that won't clear), not routine noise — one line per failed sweep at most.
-                _logger.LogWarning(ex, "[JellyRock] error reaping idle playback session {SessionId}", session.Id);
+                _logger.LogWarning(ex, "[JellyRock] error reaping playback session {SessionId}", session.Id);
             }
         }
     }
 
-    private void LeaveSyncPlayGroupIfClosed(SessionInfo session)
+    private void LeaveSyncPlayGroupIfClosed(SessionInfo session, QueueingSessionController? controller, AppLiveness liveness)
     {
-        var controller = session.SessionControllers.OfType<QueueingSessionController>().FirstOrDefault();
         if (controller is null
-            || !ReapDecision.ShouldLeaveSyncPlayGroup(
-                session.Client,
-                controller.IsInSyncPlayGroup,
-                controller.HasPolled,
-                PhantomSessionService.IsAppOpen(session)))
+            || !ReapDecision.ShouldLeaveSyncPlayGroup(session.Client, controller.IsInSyncPlayGroup, liveness))
         {
             return;
         }

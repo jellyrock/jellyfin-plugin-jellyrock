@@ -19,8 +19,8 @@ session other than the cold-launch phantom is active (`PhantomSessionService.IsA
 window is two poll waits. When the app closes a poll (the request's abort token) and no other poll is
 open, the window shrinks to a 10-second grace (`QueueingSessionController.MarkPollEnded`).
 
-The SyncPlay leave and the playback reap (playing or paused, `ReapDecision.IsClosedAppReapable`) ask
-`ReapDecision.IsLongPollAppClosed`, and the cast list reads the same poll window through
+The SyncPlay leave and the playback reap (playing or paused, `ReapDecision.Decide`) read the app's
+liveness once per sweep through `ReapDecision.ReadLiveness`, and the cast list reads the same poll window through
 `QueueingSessionController.IsSessionActive`, so all three answer "is it gone?" the same way.
 
 ## Consequences
