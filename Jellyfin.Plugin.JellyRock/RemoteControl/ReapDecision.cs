@@ -110,7 +110,7 @@ public static class ReapDecision
     /// rests on a false premise: left as-is it would record a resume point minutes past where the user
     /// actually stopped (they would skip content). So we back it out — subtract the time elapsed since
     /// the last real check-in — landing on the last client-confirmed position. That is at most one
-    /// check-in interval behind the true stop, that is in the safe re-watch direction, and it does
+    /// check-in interval behind the true stop, that is, in the safe re-watch direction, and it does
     /// not drift with how long we waited to reap. Clamped to <c>[0, runtimeTicks]</c>.
     /// </para>
     /// </summary>

@@ -12,8 +12,8 @@ description: >
   the closed Roku as a "Play On" target and opens the item on it (http and https;
   JellyRock v2.24.0 or newer). Remote control on HTTPS: Roku cannot open a secure socket
   (wss://), so on an HTTPS server the plugin carries Play On casting and play, pause and
-  seek from your phone to an open JellyRock (v2.23.0 or newer). Fast cleanup on HTTPS:
-  when you press Home on the Roku mid-video, the app cannot tell the server it stopped,
+  seek from your phone to an open JellyRock (v2.23.0 or newer). Fast cleanup on HTTPS
+  (v2.23.0 or newer): when you press Home on the Roku mid-video, the app cannot tell the server it stopped,
   so the session and its transcode linger for 5-10 minutes. The plugin detects the
   closed app within about a minute and stops it. On servers before Jellyfin 12.0 it
   also saves the resume point where you stopped, where Jellyfin alone would move it
