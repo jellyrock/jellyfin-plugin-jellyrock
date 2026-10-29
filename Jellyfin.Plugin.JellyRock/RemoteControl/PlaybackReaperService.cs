@@ -23,8 +23,8 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 /// <para>
 /// This worker sweeps the session list on a short cadence and reaps a JellyRock session for one of the
 /// reasons <see cref="ReapDecision.Decide"/> gives: its app has closed its long poll, playing or paused;
-/// or the app never polled and its last real playback check-in (the client's ~10s
-/// <c>Sessions/Playing/Progress</c> report) has gone stale past <see cref="StaleThresholdSeconds"/> while
+/// or the app never polled and its last real playback check-in (the client's
+/// <c>Sessions/Playing/Progress</c> report, every ~10s for a playing video) has gone stale past <see cref="StaleThresholdSeconds"/> while
 /// playing. An open app (a fresh poll, or the server's own socket on HTTP) is never reaped. Reaping calls <see cref="ISessionManager.OnPlaybackStopped"/>,
 /// exactly as Jellyfin's own idle check does, so it frees any active transcode and clears the session
 /// through the normal path, just on a faster, purpose-built clock. See <see cref="ReapDecision"/> for the
@@ -49,8 +49,8 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
     /// threshold is likewise hardcoded. The resume-position correction (see <see cref="ReapDecision"/>)
     /// decouples resume accuracy from this value, so it is chosen purely for false-positive safety.
     /// <para>
-    /// A mid-playback buffer is NOT a false positive: verified against the JellyRock client, the ~10s
-    /// report timer keeps firing while buffering (only pause/stop/finished/error stop it), so a
+    /// A mid-playback buffer is not a false positive: verified against the JellyRock client, the video
+    /// report timer keeps firing while buffering, so a
     /// transiently-stalled-but-alive session keeps checking in and is never reaped; and a non-progressing
     /// stall is escalated by the client's own buffer-check to a self-reported stop within ~30s. This
     /// threshold therefore only elapses for a client that is genuinely unreachable — the correct case to

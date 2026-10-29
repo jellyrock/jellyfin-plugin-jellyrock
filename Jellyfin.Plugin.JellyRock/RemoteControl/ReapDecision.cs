@@ -11,9 +11,10 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 public static class ReapDecision
 {
     /// <summary>
-    /// Minimum JellyRock version whose playback progress reports are frequent enough for the 60s stale
-    /// threshold to be safe. JellyRock moved its report cadence from every 30s to every ~10s in
-    /// <c>v1.15.0</c>; at 10s the threshold is a comfortable ~6x the report interval, so a healthy
+    /// Minimum JellyRock version whose playing-video progress reports are frequent enough for the 60s
+    /// stale threshold to be safe. JellyRock moved its playing-video report cadence from every 30s to
+    /// every ~10s in <c>v1.15.0</c>. Audio and paused video report less often, so the cadence holds only
+    /// for a playing video. At 10s the threshold is a comfortable ~6x the report interval, so a healthy
     /// client is never reaped between reports. Older clients (~30s reports) get only ~2x margin, where a
     /// merely-late report or a short buffered network blip could reap a still-playing session — so they
     /// are excluded and left to Jellyfin's own idle reap, which is exactly their behavior today (no
@@ -46,18 +47,21 @@ public static class ReapDecision
     /// <summary>
     /// Whether to reap a JellyRock session with something playing or paused, and why.
     /// <list type="bullet">
-    ///   <item><see cref="AppLiveness.Open"/>: never. A paused app stops its check-ins, and in a SyncPlay
-    ///     group the server can keep <c>IsPaused=false</c>, so an open app can look stale.</item>
+    ///   <item><see cref="AppLiveness.Open"/>: never. A paused app checks in rarely or not at all, and the
+    ///     server can lose a pause report and keep <c>IsPaused=false</c>, so an open app can look
+    ///     stale.</item>
     ///   <item><see cref="AppLiveness.Closed"/>: <see cref="ReapReason.AppClosed"/>, playing or paused,
     ///     without waiting for the check-ins to go stale.</item>
     ///   <item><see cref="AppLiveness.Unknown"/>: <see cref="ReapReason.CheckInsStale"/> when the session is
-    ///     playing, new enough to report every ~10s (see <see cref="MinReportCadenceVersion"/>), and its
+    ///     playing, new enough to report every ~10s while playing video (see
+    ///     <see cref="MinReportCadenceVersion"/>), and its
     ///     last check-in is older than <paramref name="thresholdSeconds"/>.</item>
     /// </list>
     /// <para>
-    /// With no poll to say the app closed, a paused session is left to Jellyfin's own idle check. On pause
-    /// the client sends one progress report with <c>IsPaused=true</c> and then stops its report timer
-    /// (VideoPlayerView.bs <c>onState</c> "paused" branch), so stale check-ins are expected while paused.
+    /// With no poll to say the app closed, a paused session is left to Jellyfin's own idle check, since a
+    /// paused app checks in rarely or not at all. This trusts the server's <c>IsPaused</c>, which a lost
+    /// pause report leaves false: Jellyfin's 1-second automatic progress copy of the last playing report
+    /// can land after the pause report is applied and before it replaces the stored report.
     /// </para>
     /// </summary>
     /// <param name="client">The session's <c>Client</c> string.</param>
@@ -117,8 +121,8 @@ public static class ReapDecision
     }
 
     /// <summary>
-    /// Whether the reported JellyRock version reports playback progress every ~10s (v1.15.0+), so the
-    /// stale threshold has enough margin. Unparseable / missing versions return <c>false</c>.
+    /// Whether the reported JellyRock version reports playing-video progress every ~10s (v1.15.0+), so
+    /// the stale threshold has enough margin for a playing video. Unparseable / missing versions return <c>false</c>.
     /// </summary>
     /// <param name="appVersion">The session's <c>ApplicationVersion</c> string.</param>
     /// <returns><c>true</c> if the version is new enough for the fast report cadence.</returns>

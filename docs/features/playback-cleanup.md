@@ -25,7 +25,8 @@ own idle reaper does, on a faster clock, in either of two cases:
   connection and opened no new one within a few seconds, or went two poll cycles without polling. This
   covers a paused video too.
 - **The check-ins stopped.** The video is playing, but the client's playback check-ins (its
-  `Sessions/Playing/Progress` reports, every 10 seconds) have gone silent past a 60-second threshold.
+  `Sessions/Playing/Progress` reports, every 10 seconds while a video plays) have gone silent past a
+  60-second threshold.
 
 It records the resume point at the **last confirmed check-in** position rather than Jellyfin's
 forward-extrapolated one, so resuming later lands where you actually stopped instead of skipping ahead.
@@ -39,8 +40,8 @@ A paused session keeps its paused position as the resume point.
 An **HTTPS** Jellyfin server (10.11+). Each case needs a JellyRock version:
 
 - **The app has closed:** JellyRock **v2.23.0 or newer**, the release that added the long poll.
-- **The check-ins stopped:** JellyRock **v1.15.0 or newer**, the release that moved playback progress
-  reporting to a ~10s cadence, which the 60-second threshold relies on.
+- **The check-ins stopped:** JellyRock **v1.15.0 or newer**, the release that moved playing-video
+  progress reporting to a ~10s cadence, which the 60-second threshold relies on.
 
 On clients older than v1.15.0 the plugin does nothing and Jellyfin's default idle handling applies
 (unchanged).
