@@ -14,6 +14,10 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 - leave the group of a JellyRock that closed on an HTTPS server ([#33](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/33))
 
+### Fixed
+
+- clear playback when JellyRock closes, and only then ([#34](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/34))
+
 ## [0.3.0](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.2.0...v0.3.0) - 2026-07-24
 
 ### Added
