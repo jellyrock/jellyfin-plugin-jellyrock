@@ -14,12 +14,12 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ### Added
 
-- leave the group of a JellyRock that closed on an HTTPS server ([#33](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/33))
+- when JellyRock closes on an HTTPS server, it now leaves its SyncPlay group, so the rest of the group no longer waits for it ([#33](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/33))
 
 ### Fixed
 
-- stop ending music and paused videos on HTTPS with JellyRock before v2.23.0 ([#35](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/35))
-- clear playback when JellyRock closes, and only then ([#34](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/34))
+- on an HTTPS server, music and paused videos in JellyRock older than v2.23.0 are no longer stopped after about a minute ([#35](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/35))
+- on an HTTPS server, closing JellyRock now clears its "now playing" within seconds, even when paused, and never stops a JellyRock that is still open ([#34](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/34))
 
 ## [0.3.0](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.2.0...v0.3.0) - 2026-07-24
 
