@@ -28,6 +28,10 @@ None open.
 
 `AGENTS.md` ("Commits & PR titles") says "The PR title is the changelog source for squash/merge PRs". The repo's squash setting is `COMMIT_OR_PR_TITLE` (read 2026-10-27 with `gh api repos/jellyrock/jellyfin-plugin-jellyrock`), so on a one-commit squash GitHub uses the commit's subject instead, and `scripts/changelog-gen.sh` reads first-parent subjects. Nothing breaks today because Commit Style lints both the title and the pushed subjects, but an agent following the line may fix the title and miss a wrong commit subject. Closes when the line says which subject reaches `CHANGELOG.md` in each merge mode (squash with one commit, squash with several, merge commit, rebase), matching `.github/pull_request_template.md`'s hint, or when the squash setting is changed to `PR_TITLE`.
 
+#### PR titles reach users as release notes, but nothing says how to write them for users `[fid: pr-titles-read-as-release-notes]` `[captured 2026-10-29]`
+
+The changelog entry is the squash commit's subject (`scripts/changelog-gen.sh` reads `git log`), and it can't be changed once merged. For 0.4.0 the entries for #33 ("leave the group of a JellyRock that closed on an HTTPS server"), #34 ("clear playback when JellyRock closes, and only then") and #35 ("stop ending music and paused videos on HTTPS…") read unclearly to users. They had to be reworded by hand in the dated section on the release branch (commit 20bc267 on `release-0.4.0`). `AGENTS.md` ("Commits & PR titles") and the `/pr` skill's title step say to write the title as the user-facing change, but give no test for it. Closes when both say that the title is the line a JellyRock user reads in the release notes and the plugin catalog: name the feature (SyncPlay, not "the group"), say what the user sees, and avoid negatives such as "stop ending". Related: `agents-md-changelog-source-line` covers the same section's wording about which subject reaches the changelog.
+
 ### Docs
 
 #### Reword the Markdown voice hits the baseline still allows `[fid: voice-baseline-hits-to-zero]` `[captured 2026-10-27]`
