@@ -1,7 +1,7 @@
 ---
 name: "JellyRock Companion"
 guid: "6c4f4b7e-50f7-43b8-a180-7de26f9033d6"
-version: "0.3.0.0"
+version: "0.4.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Server-side companion for the JellyRock Roku app: cast to a closed Roku, Play On remote control on HTTPS servers, and fast cleanup when the app is closed during playback."
