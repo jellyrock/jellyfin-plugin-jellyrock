@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Claims;
 using System.Threading;
@@ -111,6 +112,41 @@ public class RemoteControlControllerTests
         var result = await controller.Poll(cancellationToken: cts.Token);
 
         Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task Poll_ClosedByTheApp_MarksThePollClosed()
+    {
+        // The request's abort token is how the plugin hears that the app exited mid-poll.
+        var session = BuildSession("device-1", JellyRockSessionService.JellyRockClientName);
+        _sessionManager.Sessions.Returns(new[] { session });
+        var controller = BuildController(
+            new Claim(DeviceIdClaim, "device-1"),
+            new Claim(ClientClaim, JellyRockSessionService.JellyRockClientName));
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await controller.Poll(cancellationToken: cts.Token);
+
+        var queueing = Assert.Single(session.SessionControllers.OfType<QueueingSessionController>());
+        Assert.True(queueing.PollClosedByClient);
+    }
+
+    [Fact]
+    public async Task Poll_AnsweredNormally_LeavesThePollOpenEnded()
+    {
+        var session = BuildSession("device-1", JellyRockSessionService.JellyRockClientName);
+        _sessionManager.Sessions.Returns(new[] { session });
+        var queueing = JellyRockSessionService.EnsureAttached(_sessionManager, session);
+        await queueing.SendMessage(SessionMessageType.GeneralCommand, Guid.NewGuid(), new { Name = "GoHome" }, CancellationToken.None);
+        var controller = BuildController(
+            new Claim(DeviceIdClaim, "device-1"),
+            new Claim(ClientClaim, JellyRockSessionService.JellyRockClientName));
+
+        await controller.Poll(cancellationToken: CancellationToken.None);
+
+        Assert.False(queueing.PollClosedByClient);
+        Assert.True(queueing.IsSessionActive);
     }
 
     [Fact]

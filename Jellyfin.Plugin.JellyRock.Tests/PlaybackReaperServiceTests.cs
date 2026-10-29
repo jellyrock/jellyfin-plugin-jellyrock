@@ -1,9 +1,13 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyRock.RemoteControl;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Controller.SyncPlay;
+using MediaBrowser.Controller.SyncPlay.Requests;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Session;
+using MediaBrowser.Model.SyncPlay;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -20,6 +24,7 @@ namespace Jellyfin.Plugin.JellyRock.Tests;
 public class PlaybackReaperServiceTests
 {
     private readonly ISessionManager _sessionManager = Substitute.For<ISessionManager>();
+    private readonly ISyncPlayManager _syncPlayManager = Substitute.For<ISyncPlayManager>();
 
     [Fact]
     public async Task SweepAsync_StalePlayingJellyRockSession_ReapsWithCorrectedPosition()
@@ -171,8 +176,116 @@ public class PlaybackReaperServiceTests
         await _sessionManager.DidNotReceive().OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
     }
 
+    [Fact]
+    public async Task SweepAsync_ClosedAppInAGroup_LeavesTheGroupOnce()
+    {
+        var session = BuildIdleSession("closed");
+        var controller = AttachController(session, inGroup: true, polled: true, closed: true);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        var service = BuildService();
+        await service.SweepAsync();
+        await service.SweepAsync();
+
+        _syncPlayManager.Received(1).LeaveGroup(session, Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>());
+        Assert.False(controller.IsInSyncPlayGroup);
+        // Leaving the group never ends the session: the cold-launch wake needs it.
+        await _sessionManager.DidNotReceive().ReportSessionEnded(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_OpenAppInAGroup_StaysInTheGroup()
+    {
+        var session = BuildIdleSession("open");
+        AttachController(session, inGroup: true, polled: true, closed: false);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        _syncPlayManager.DidNotReceive().LeaveGroup(Arg.Any<SessionInfo>(), Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_AppThatNeverPolled_StaysInTheGroup()
+    {
+        // On an HTTP server the app uses the server's socket and never polls; the server itself takes
+        // it out of the group when the socket drops.
+        var session = BuildIdleSession("http");
+        AttachController(session, inGroup: true, polled: false, closed: false);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        _syncPlayManager.DidNotReceive().LeaveGroup(Arg.Any<SessionInfo>(), Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_ClosedAppInNoGroup_SendsNoLeave()
+    {
+        // A leave for a session in no group makes the server log a warning and queue NotInGroup.
+        var session = BuildIdleSession("no-group");
+        AttachController(session, inGroup: false, polled: true, closed: true);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        _syncPlayManager.DidNotReceive().LeaveGroup(Arg.Any<SessionInfo>(), Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_LeaveThrows_IsTriedOnce_AndTheSweepGoesOn()
+    {
+        var bad = BuildIdleSession("bad");
+        AttachController(bad, inGroup: true, polled: true, closed: true);
+        var good = BuildIdleSession("good");
+        AttachController(good, inGroup: true, polled: true, closed: true);
+        _sessionManager.Sessions.Returns(new[] { bad, good });
+        _syncPlayManager
+            .When(x => x.LeaveGroup(bad, Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>()))
+            .Do(_ => throw new InvalidOperationException("leave boom"));
+
+        var service = BuildService();
+        await service.SweepAsync();
+        await service.SweepAsync();
+
+        _syncPlayManager.Received(1).LeaveGroup(bad, Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>());
+        _syncPlayManager.Received(1).LeaveGroup(good, Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    private static QueueingSessionController AttachController(SessionInfo session, bool inGroup, bool polled, bool closed)
+    {
+        var controller = new QueueingSessionController(TimeSpan.Zero);
+        if (polled)
+        {
+            controller.MarkPolled(25000);
+            controller.MarkPollEnded(closedByClient: closed);
+        }
+
+        if (inGroup)
+        {
+            var groupId = Guid.NewGuid();
+            controller.SendMessage(
+                SessionMessageType.SyncPlayGroupUpdate,
+                Guid.NewGuid(),
+                (GroupUpdate<GroupInfoDto>)new SyncPlayGroupJoinedUpdate(groupId, new GroupInfoDto(groupId, "Movie night", GroupStateType.Idle, new[] { "ann" }, DateTime.UtcNow)),
+                CancellationToken.None);
+        }
+
+        session.EnsureController<QueueingSessionController>(_ => controller);
+        return controller;
+    }
+
+    private SessionInfo BuildIdleSession(string id) =>
+        new(_sessionManager, Substitute.For<ILogger>())
+        {
+            Id = id,
+            Client = JellyRockSessionService.JellyRockClientName,
+            ApplicationVersion = "3.3.0",
+            DeviceName = "Living Room Roku"
+        };
+
     private PlaybackReaperService BuildService() =>
-        new(_sessionManager, Substitute.For<ILogger<PlaybackReaperService>>());
+        new(_sessionManager, _syncPlayManager, Substitute.For<ILogger<PlaybackReaperService>>());
 
     private SessionInfo BuildSession(
         string client,

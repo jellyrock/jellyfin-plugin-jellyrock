@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Mime;
@@ -127,7 +128,18 @@ public class RemoteControlController : ControllerBase
         var ackMode = ack == 1;
         _ = Guid.TryParse(ackId, out var parsedAckId);
 
-        var batch = await controller.DequeueBatchAsync(waitMs, ackMode, parsedAckId, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<CommandEnvelope> batch;
+        try
+        {
+            batch = await controller.DequeueBatchAsync(waitMs, ackMode, parsedAckId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            // The token is the request's abort signal: set when the app closed the connection, which
+            // is what an app does as it exits.
+            controller.MarkPollEnded(cancellationToken.IsCancellationRequested);
+        }
+
         if (batch.Count == 0)
         {
             return NoContent();

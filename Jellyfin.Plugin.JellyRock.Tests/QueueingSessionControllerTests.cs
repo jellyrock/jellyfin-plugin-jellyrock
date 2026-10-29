@@ -4,8 +4,10 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Extensions.Json;
 using Jellyfin.Plugin.JellyRock.RemoteControl;
 using MediaBrowser.Model.Session;
+using MediaBrowser.Model.SyncPlay;
 using Xunit;
 
 namespace Jellyfin.Plugin.JellyRock.Tests;
@@ -117,7 +119,163 @@ public class QueueingSessionControllerTests
             batch.Select(e => Data(e).GetProperty("Name").GetString()));
     }
 
+    [Fact]
+    public async Task Payload_MatchesTheServerSocket_FieldForField()
+    {
+        // The session socket serializes with JsonDefaults.Options; the long poll must write the same
+        // bytes, so the app's one parser never meets a difference on only one transport.
+        var controller = new QueueingSessionController();
+        var sample = new SocketSample
+        {
+            ItemId = Guid.Parse("27067fa4-3de4-4a8b-9c1d-0123456789ab"),
+            When = new DateTime(2026, 10, 27, 20, 47, 20, 500, DateTimeKind.Utc),
+            Missing = null,
+            Verb = SampleVerb.Pause
+        };
+
+        await controller.SendMessage(SessionMessageType.Playstate, Guid.NewGuid(), sample, CancellationToken.None);
+
+        var batch = await controller.DequeueBatchAsync(1000, ackMode: false, Guid.Empty, CancellationToken.None);
+        var data = Data(Assert.Single(batch));
+
+        Assert.Equal(JsonSerializer.Serialize(sample, JsonDefaults.Options), data.GetRawText());
+        Assert.Equal("27067fa43de44a8b9c1d0123456789ab", data.GetProperty("ItemId").GetString());
+        Assert.False(data.TryGetProperty("Missing", out _));
+    }
+
+    [Fact]
+    public void HasPolled_IsFalseUntilTheFirstPoll()
+    {
+        var controller = new QueueingSessionController();
+        Assert.False(controller.HasPolled);
+
+        controller.MarkPolled(25000);
+
+        Assert.True(controller.HasPolled);
+    }
+
+    [Fact]
+    public void ClosedPoll_EndsLiveness_AfterTheGrace()
+    {
+        var controller = new QueueingSessionController(TimeSpan.Zero);
+        controller.MarkPolled(25000);
+
+        controller.MarkPollEnded(closedByClient: true);
+
+        Assert.False(controller.IsSessionActive);
+        Assert.True(controller.PollClosedByClient);
+        Assert.True(controller.HasPolled);
+    }
+
+    [Fact]
+    public void ClosedPoll_KeepsLiveness_DuringTheGrace()
+    {
+        var controller = new QueueingSessionController(TimeSpan.FromMinutes(1));
+        controller.MarkPolled(25000);
+
+        controller.MarkPollEnded(closedByClient: true);
+
+        Assert.True(controller.IsSessionActive);
+    }
+
+    [Fact]
+    public void PollThatEndsNormally_KeepsTheFullWindow()
+    {
+        var controller = new QueueingSessionController(TimeSpan.Zero);
+        controller.MarkPolled(25000);
+
+        controller.MarkPollEnded(closedByClient: false);
+
+        Assert.True(controller.IsSessionActive);
+        Assert.False(controller.PollClosedByClient);
+    }
+
+    [Fact]
+    public void ClosedPoll_WhileAnotherPollIsOpen_KeepsLiveness()
+    {
+        // An abandoned poll can close after the app's retry has already opened the next one; that close
+        // must not cut the live poll's window short.
+        var controller = new QueueingSessionController(TimeSpan.Zero);
+        controller.MarkPolled(25000);
+        controller.MarkPolled(25000);
+
+        controller.MarkPollEnded(closedByClient: true);
+
+        Assert.True(controller.IsSessionActive);
+        Assert.False(controller.PollClosedByClient);
+    }
+
+    [Fact]
+    public void NewPoll_AfterAClosedOne_RestoresLiveness()
+    {
+        var controller = new QueueingSessionController(TimeSpan.Zero);
+        controller.MarkPolled(25000);
+        controller.MarkPollEnded(closedByClient: true);
+
+        controller.MarkPolled(25000);
+
+        Assert.True(controller.IsSessionActive);
+        Assert.False(controller.PollClosedByClient);
+    }
+
+    [Fact]
+    public async Task SyncPlayMembership_FollowsTheServersGroupFrames()
+    {
+        var controller = new QueueingSessionController();
+        var groupId = Guid.NewGuid();
+        Assert.False(controller.IsInSyncPlayGroup);
+
+        await SendGroupUpdate(controller, new SyncPlayGroupJoinedUpdate(groupId, new GroupInfoDto(groupId, "Movie night", GroupStateType.Idle, new[] { "ann" }, DateTime.UtcNow)));
+        Assert.True(controller.IsInSyncPlayGroup);
+
+        // A frame that is not about this session's membership leaves it as it is.
+        await SendGroupUpdate(controller, new SyncPlayUserJoinedUpdate(groupId, "bob"));
+        Assert.True(controller.IsInSyncPlayGroup);
+
+        await SendGroupUpdate(controller, new SyncPlayGroupLeftUpdate(groupId, string.Empty));
+        Assert.False(controller.IsInSyncPlayGroup);
+    }
+
+    [Fact]
+    public async Task SyncPlayMembership_NotInGroup_ClearsIt()
+    {
+        var controller = new QueueingSessionController();
+        var groupId = Guid.NewGuid();
+        await SendGroupUpdate(controller, new SyncPlayGroupJoinedUpdate(groupId, new GroupInfoDto(groupId, "Movie night", GroupStateType.Idle, new[] { "ann" }, DateTime.UtcNow)));
+
+        await SendGroupUpdate(controller, new SyncPlayNotInGroupUpdate(Guid.Empty, string.Empty));
+
+        Assert.False(controller.IsInSyncPlayGroup);
+    }
+
+    [Fact]
+    public async Task ForgetSyncPlayGroup_ClearsMembership()
+    {
+        var controller = new QueueingSessionController();
+        var groupId = Guid.NewGuid();
+        await SendGroupUpdate(controller, new SyncPlayGroupJoinedUpdate(groupId, new GroupInfoDto(groupId, "Movie night", GroupStateType.Idle, new[] { "ann" }, DateTime.UtcNow)));
+
+        controller.ForgetSyncPlayGroup();
+
+        Assert.False(controller.IsInSyncPlayGroup);
+    }
+
+    // The server sends group updates typed as the abstract GroupUpdate<T>, so the tests do too.
+    private static Task SendGroupUpdate<T>(QueueingSessionController controller, GroupUpdate<T> update) =>
+        controller.SendMessage(SessionMessageType.SyncPlayGroupUpdate, Guid.NewGuid(), update, CancellationToken.None);
+
     private static JsonElement Data(CommandEnvelope envelope) => (JsonElement)envelope.Data!;
+
+    private sealed class SocketSample
+    {
+        public Guid ItemId { get; set; }
+
+        public DateTime When { get; set; }
+
+        public string? Missing { get; set; }
+
+        public SampleVerb Verb { get; set; }
+    }
 
     [Fact]
     public async Task EmptyPoll_ReturnsEmptyAfterHold()
