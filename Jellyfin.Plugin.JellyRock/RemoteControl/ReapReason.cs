@@ -13,10 +13,5 @@ public enum ReapReason
     /// <summary>
     /// The app has closed (<see cref="AppLiveness.Closed"/>), playing or paused.
     /// </summary>
-    AppClosed,
-
-    /// <summary>
-    /// The app never polled, and its playing session's check-ins went stale.
-    /// </summary>
-    CheckInsStale
+    AppClosed
 }

@@ -35,6 +35,7 @@ public class PlaybackReaperServiceTests
             checkInSecondsAgo: 90,
             isPaused: false,
             positionSeconds: 690);
+        AttachController(session, inGroup: false, polled: true, closed: true);
         _sessionManager.Sessions.Returns(new[] { session });
 
         await BuildService().SweepAsync();
@@ -47,6 +48,23 @@ public class PlaybackReaperServiceTests
             i.SessionId == "sess-1"
             && i.PositionTicks >= TimeSpan.FromSeconds(598).Ticks
             && i.PositionTicks <= TimeSpan.FromSeconds(600).Ticks));
+    }
+
+    [Fact]
+    public async Task SweepAsync_StalePlayingAppThatNeverPolled_DoesNotReap()
+    {
+        // An HTTPS app too old for the long poll gives no sign it closed, and its check-ins are not a
+        // reliable one (audio reports only on state changes), so the server's own idle check handles it.
+        var session = BuildSession(
+            client: JellyRockSessionService.JellyRockClientName,
+            checkInSecondsAgo: 90,
+            isPaused: false,
+            positionSeconds: 690);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.DidNotReceive().OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
     }
 
     [Fact]
@@ -80,24 +98,6 @@ public class PlaybackReaperServiceTests
     }
 
     [Fact]
-    public async Task SweepAsync_OldClientVersion_DoesNotReap()
-    {
-        // v1.14.0 reports every ~30s — below the 10s-cadence cutoff, so the plugin leaves it to
-        // Jellyfin's native idle reap rather than risk reaping a still-playing session.
-        var session = BuildSession(
-            client: JellyRockSessionService.JellyRockClientName,
-            checkInSecondsAgo: 300,
-            isPaused: false,
-            positionSeconds: 300,
-            appVersion: "1.14.0");
-        _sessionManager.Sessions.Returns(new[] { session });
-
-        await BuildService().SweepAsync();
-
-        await _sessionManager.DidNotReceive().OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
-    }
-
-    [Fact]
     public async Task SweepAsync_ReapedSession_MapsEveryStopInfoField()
     {
         // Guards the full PlaybackStopInfo mapping, not just SessionId/PositionTicks: a future refactor
@@ -108,6 +108,7 @@ public class PlaybackReaperServiceTests
             isPaused: false,
             positionSeconds: 690,
             id: "sess-map");
+        AttachController(session, inGroup: false, polled: true, closed: true);
         var expectedItem = session.NowPlayingItem;
         var expectedItemId = session.NowPlayingItem!.Id;
         _sessionManager.Sessions.Returns(new[] { session });
@@ -133,6 +134,7 @@ public class PlaybackReaperServiceTests
             JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 300, isPaused: true, positionSeconds: 300, id: "paused");
         var nonJellyRock = BuildSession(
             "Jellyfin Web", checkInSecondsAgo: 300, isPaused: false, positionSeconds: 300, id: "web");
+        AttachController(reapable, inGroup: false, polled: true, closed: true);
         _sessionManager.Sessions.Returns(new[] { fresh, reapable, paused, nonJellyRock });
 
         await BuildService().SweepAsync();
@@ -150,6 +152,8 @@ public class PlaybackReaperServiceTests
             JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 690, id: "bad");
         var good = BuildSession(
             JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 690, id: "good");
+        AttachController(bad, inGroup: false, polled: true, closed: true);
+        AttachController(good, inGroup: false, polled: true, closed: true);
         _sessionManager.Sessions.Returns(new[] { bad, good });
         _sessionManager
             .When(x => x.OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i => i.SessionId == "bad")))
@@ -267,9 +271,9 @@ public class PlaybackReaperServiceTests
     }
 
     [Fact]
-    public async Task SweepAsync_PlayingAppThatClosedItsPoll_ReapsBeforeTheCheckInThreshold()
+    public async Task SweepAsync_PlayingAppThatClosedItsPoll_ReapsWithoutWaitingForCheckIns()
     {
-        // Check-ins are only 15s stale, well inside the 60s threshold; the closed poll is enough.
+        // The check-ins are fresh (15s old); the closed poll is enough.
         var session = BuildSession(
             JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 15, isPaused: false, positionSeconds: 615, id: "playing-closed");
         AttachController(session, inGroup: false, polled: true, closed: true);
@@ -300,7 +304,7 @@ public class PlaybackReaperServiceTests
     public async Task SweepAsync_NotPausedAppStillPolling_StaleCheckIns_DoesNotReap()
     {
         // A paused SyncPlay session can keep IsPaused=false on the server while check-ins go stale.
-        // The app is still open, so the check-in rule must not reap it.
+        // The app is still open, so it is not reaped.
         var session = BuildSession(
             JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 600, id: "syncplay-paused-open");
         AttachController(session, inGroup: false, polled: true, closed: false);
@@ -315,7 +319,7 @@ public class PlaybackReaperServiceTests
     public async Task SweepAsync_PausedAppThatNeverPolled_DoesNotReap()
     {
         // An app on an HTTP server, or one too old for the long poll, never polls: its paused session is
-        // left to the server, as before.
+        // left to the server.
         var session = BuildSession(
             JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 300, isPaused: true, positionSeconds: 600, id: "paused-http");
         AttachController(session, inGroup: false, polled: false, closed: false);

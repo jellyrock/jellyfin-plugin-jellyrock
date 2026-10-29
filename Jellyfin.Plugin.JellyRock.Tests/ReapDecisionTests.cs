@@ -5,23 +5,19 @@ using Xunit;
 namespace Jellyfin.Plugin.JellyRock.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="ReapDecision"/> — the pure eligibility rule (including the client-version
-/// gate) and the resume-position correction that carry all the judgment behind the idle-playback reaper
-/// (JellyRock issue #43).
+/// Unit tests for <see cref="ReapDecision"/>: the pure eligibility rule and the resume-position
+/// correction that carry all the judgment behind the idle-playback reaper (JellyRock issue #43).
 /// </summary>
 public class ReapDecisionTests
 {
-    private const int ThresholdSeconds = 60;
-
-    // A version at/after the v1.15.0 cutoff where JellyRock reports playback progress every ~10s.
-    private const string CurrentVersion = "2.23.0";
-
     private static readonly DateTime Now = new(2026, 7, 16, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void Decide_StalePlayingAppThatNeverPolled_CheckInsStale()
+    public void Decide_AppThatNeverPolled_None()
     {
-        Assert.Equal(ReapReason.CheckInsStale, Decide(checkInSecondsAgo: 61));
+        // Audio reports only on state changes and the server can lose a pause report, so stale check-ins
+        // say nothing about whether the app is open.
+        Assert.Equal(ReapReason.None, Decide());
     }
 
     [Theory]
@@ -41,14 +37,6 @@ public class ReapDecisionTests
     }
 
     [Fact]
-    public void Decide_PausedAppThatNeverPolled_None()
-    {
-        // Paused sessions stop sending check-ins, so they look stale; with no poll to say the app closed,
-        // a paused session is left to Jellyfin's own idle check.
-        Assert.Equal(ReapReason.None, Decide(isPaused: true));
-    }
-
-    [Fact]
     public void Decide_OpenApp_None()
     {
         // An open app is alive whatever its check-ins say (a paused SyncPlay session can keep
@@ -56,58 +44,18 @@ public class ReapDecisionTests
         Assert.Equal(ReapReason.None, Decide(liveness: AppLiveness.Open));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Decide_ClosedApp_AppClosed_PlayingOrPaused_WithoutWaitingForCheckIns(bool isPaused)
-    {
-        Assert.Equal(ReapReason.AppClosed, Decide(isPaused: isPaused, liveness: AppLiveness.Closed, checkInSecondsAgo: 15));
-    }
-
     [Fact]
-    public void Decide_FreshCheckIn_None()
+    public void Decide_ClosedApp_AppClosed()
     {
-        Assert.Equal(ReapReason.None, Decide(checkInSecondsAgo: 30));
-    }
-
-    [Fact]
-    public void Decide_ExactlyAtThreshold_None()
-    {
-        // Strictly greater-than: at exactly the threshold the session is not yet reaped.
-        Assert.Equal(ReapReason.None, Decide(checkInSecondsAgo: ThresholdSeconds));
+        Assert.Equal(ReapReason.AppClosed, Decide(liveness: AppLiveness.Closed));
     }
 
     [Theory]
-    [InlineData(AppLiveness.Unknown, ReapReason.CheckInsStale)]
+    [InlineData(AppLiveness.Unknown, ReapReason.None)]
     [InlineData(AppLiveness.Closed, ReapReason.AppClosed)]
     public void Decide_ClientMatchIsCaseInsensitive(AppLiveness liveness, ReapReason expected)
     {
-        Assert.Equal(expected, Decide(client: "jellyrock", liveness: liveness, checkInSecondsAgo: 90));
-    }
-
-    [Fact]
-    public void Decide_OldClientBelowReportCadenceCutoff_None()
-    {
-        // v1.14.0 reports every ~30s, so the 60s threshold has too little margin — excluded, left to
-        // Jellyfin's native idle reap (their behavior today, no regression).
-        Assert.Equal(ReapReason.None, Decide(appVersion: "1.14.0", checkInSecondsAgo: 90));
-    }
-
-    [Fact]
-    public void Decide_ExactlyAtReportCadenceCutoff_CheckInsStale()
-    {
-        // v1.15.0 is the first version with ~10s reports — eligible.
-        Assert.Equal(ReapReason.CheckInsStale, Decide(appVersion: "1.15.0", checkInSecondsAgo: 90));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("not-a-version")]
-    public void Decide_UnparseableVersion_None(string? appVersion)
-    {
-        // Fail safe toward not reaping when we can't establish the report cadence.
-        Assert.Equal(ReapReason.None, Decide(appVersion: appVersion));
+        Assert.Equal(expected, Decide(client: "jellyrock", liveness: liveness));
     }
 
     [Theory]
@@ -215,10 +163,7 @@ public class ReapDecisionTests
 
     private static ReapReason Decide(
         string client = JellyRockSessionService.JellyRockClientName,
-        string? appVersion = CurrentVersion,
         bool hasNowPlaying = true,
-        bool isPaused = false,
-        AppLiveness liveness = AppLiveness.Unknown,
-        int checkInSecondsAgo = 300) =>
-        ReapDecision.Decide(client, appVersion, hasNowPlaying, isPaused, liveness, Now.AddSeconds(-checkInSecondsAgo), Now, ThresholdSeconds);
+        AppLiveness liveness = AppLiveness.Unknown) =>
+        ReapDecision.Decide(client, hasNowPlaying, liveness);
 }
