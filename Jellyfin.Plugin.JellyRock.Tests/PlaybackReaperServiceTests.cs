@@ -252,6 +252,127 @@ public class PlaybackReaperServiceTests
         _syncPlayManager.Received(1).LeaveGroup(good, Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task SweepAsync_PausedAppThatClosedItsPoll_ReapsAtThePausedPosition()
+    {
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 30, isPaused: true, positionSeconds: 600, id: "paused-closed");
+        AttachController(session, inGroup: false, polled: true, closed: true);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.Received(1).OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i =>
+            i.SessionId == "paused-closed" && i.PositionTicks == TimeSpan.FromSeconds(600).Ticks));
+    }
+
+    [Fact]
+    public async Task SweepAsync_PlayingAppThatClosedItsPoll_ReapsBeforeTheCheckInThreshold()
+    {
+        // Check-ins are only 15s stale, well inside the 60s threshold; the closed poll is enough.
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 15, isPaused: false, positionSeconds: 615, id: "playing-closed");
+        AttachController(session, inGroup: false, polled: true, closed: true);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.Received(1).OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i =>
+            i.SessionId == "playing-closed"
+            && i.PositionTicks >= TimeSpan.FromSeconds(599).Ticks
+            && i.PositionTicks <= TimeSpan.FromSeconds(600).Ticks));
+    }
+
+    [Fact]
+    public async Task SweepAsync_PausedAppStillPolling_DoesNotReap()
+    {
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 300, isPaused: true, positionSeconds: 600, id: "paused-open");
+        AttachController(session, inGroup: false, polled: true, closed: false);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.DidNotReceive().OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_NotPausedAppStillPolling_StaleCheckIns_DoesNotReap()
+    {
+        // A paused SyncPlay session can keep IsPaused=false on the server while check-ins go stale.
+        // The app is still open, so the check-in rule must not reap it.
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 600, id: "syncplay-paused-open");
+        AttachController(session, inGroup: false, polled: true, closed: false);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.DidNotReceive().OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_PausedAppThatNeverPolled_DoesNotReap()
+    {
+        // An app on an HTTP server, or one too old for the long poll, never polls: its paused session is
+        // left to the server, as before.
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 300, isPaused: true, positionSeconds: 600, id: "paused-http");
+        AttachController(session, inGroup: false, polled: false, closed: false);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.DidNotReceive().OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_OpenAppOnTheServersSocket_StaleCheckIns_DoesNotReap()
+    {
+        // On HTTP the app holds the server's own session socket and never polls. An open socket means the
+        // app is open, so stale check-ins (a paused SyncPlay session reading IsPaused=false) never reap it.
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 600, id: "http-open");
+        session.EnsureController<FakeNativeController>(_ => new FakeNativeController(isActive: true));
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.DidNotReceive().OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_PausedAppWhosePollWindowLapsed_Reaps()
+    {
+        // No closed connection (a network drop closes nothing): the app reads as closed once its poll
+        // window runs out.
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 30, isPaused: true, positionSeconds: 600, id: "paused-lapsed");
+        var controller = new QueueingSessionController(TimeSpan.Zero);
+        controller.MarkPolled(0);
+        session.EnsureController<QueueingSessionController>(_ => controller);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        Assert.False(controller.PollClosedByClient);
+        await _sessionManager.Received(1).OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i => i.SessionId == "paused-lapsed"));
+    }
+
+    [Fact]
+    public async Task SweepAsync_ClosedAppPlayingInAGroup_LeavesTheGroupAndReaps()
+    {
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 15, isPaused: false, positionSeconds: 615, id: "group-closed");
+        AttachController(session, inGroup: true, polled: true, closed: true);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        _syncPlayManager.Received(1).LeaveGroup(session, Arg.Any<LeaveGroupRequest>(), Arg.Any<CancellationToken>());
+        await _sessionManager.Received(1).OnPlaybackStopped(Arg.Is<PlaybackStopInfo>(i => i.SessionId == "group-closed"));
+    }
+
     private static QueueingSessionController AttachController(SessionInfo session, bool inGroup, bool polled, bool closed)
     {
         var controller = new QueueingSessionController(TimeSpan.Zero);

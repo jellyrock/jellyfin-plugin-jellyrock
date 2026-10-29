@@ -112,20 +112,4 @@ public class PhantomSessionServiceTests
         controller.MarkPolled(25000);
         return controller;
     }
-
-    // Stands in for Jellyfin's native WebSocketController (Emby.Server.Implementations, not referenceable
-    // from a plugin): an ISessionController whose liveness we control, to model the HTTP open state.
-    private sealed class FakeNativeController : ISessionController
-    {
-        private readonly bool _isActive;
-
-        public FakeNativeController(bool isActive) => _isActive = isActive;
-
-        public bool IsSessionActive => _isActive;
-
-        public bool SupportsMediaControl => _isActive;
-
-        public Task SendMessage<T>(SessionMessageType name, Guid messageId, T data, CancellationToken cancellationToken)
-            => Task.CompletedTask;
-    }
 }

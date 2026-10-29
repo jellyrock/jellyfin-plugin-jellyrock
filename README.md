@@ -31,9 +31,9 @@ Four independent, server-assisted capabilities for JellyRock:
   session socket); the plugin **extends it to https** servers, where Roku can't open a secure `wss://`
   socket, by bridging commands over a TLS long-poll.
 - **[Fast playback cleanup](docs/features/playback-cleanup.md)**: reap a closed app's playback session
-  fast. Already near-instant on **http** with no plugin; the plugin **extends the same cleanup to https**,
-  reaping the lingering session in ~60s (instead of Jellyfin's ~5-10 min) and, on servers before 12.0,
-  an accurate resume point (12.0 records that itself).
+  fast, playing or paused. Already near-instant on **http** with no plugin; the plugin **extends the
+  same cleanup to https**, reaping the lingering session within a minute (instead of Jellyfin's 5 to 10
+  minutes) and, on servers before 12.0, an accurate resume point (12.0 records that itself).
 - **[SyncPlay on HTTPS](docs/features/syncplay.md)**: watch together in a Jellyfin SyncPlay group on an
   **https** server, and leave the group when JellyRock closes. Works with no plugin on **http**.
 

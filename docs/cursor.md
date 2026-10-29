@@ -4,7 +4,7 @@ Live state that survives between Claude Code sessions: in-flight non-project wor
 
 Tracked projects are kept outside this repo, on the maintainer's machine (`docs/projects/` is gitignored); they have their own PLANs, statuses, and lifecycle skills (`/start-project` / `/resume-project` / `/end-session`). This cursor doc is for everything else: ad-hoc work between projects, followups captured via `/log followup` for next session, and the cadences that aren't crontabbed but still need human attention.
 
-**Last updated**: 2026-10-27
+**Last updated**: 2026-10-29
 
 ## In-flight non-project work
 
@@ -35,6 +35,12 @@ None open.
 `.voice-baseline.tsv` allows the voice hits the Markdown had when it was seeded: em dashes, arrows in prose and filler words in `AGENTS.md`, `docs/dev/contributing.md`, `docs/dev/releasing.md`, `README.md`, `docs/features/playback-cleanup.md` and `docs/features/remote-control.md`. Reword them, then run `bash .claude/skills/log/voice-check.sh --lower` so the baseline keeps the gain.
 
 `bash .claude/skills/log/voice-check.sh --counts $(git ls-files '*.md' | grep -v CHANGELOG.md) | awk -F'\t' '$3 > 0'` lists what is left. Closes when that prints nothing and the baseline holds only its header.
+
+### Remote control
+
+#### The reaper and the long-poll controller read the clock directly, so their tests can't pin exact times `[fid: reaper-clock-timeprovider]` `[captured 2026-10-29]`
+
+`PlaybackReaperService.SweepAsync()` and `QueueingSessionController` (`IsPollFresh()`, `MarkPolled()`, `MarkPollEnded()`) read `DateTime.UtcNow` directly. So the reaper's sweep tests assert position ranges (for example 598 to 600 s) instead of exact ticks, and a test can only make a poll window lapse by building a zero-length one. Inject `TimeProvider` (in the BCL since .NET 8; the plugin targets `net9.0`) into both, with `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing` in the tests. Found in the PR #34 review on 2026-10-29; left out of that PR because it changes the long-poll controller, which the fix does not touch. Closes when neither class reads `DateTime.UtcNow` and the sweep tests assert exact ticks.
 
 ## Batch jobs
 

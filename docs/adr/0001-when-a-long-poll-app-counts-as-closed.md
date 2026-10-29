@@ -9,7 +9,8 @@
 On an HTTPS server JellyRock reaches Jellyfin through this plugin's long poll, because Roku has no
 `wss://`. A Roku app can't run code when the user presses **Home**, and no socket drops on HTTPS, so
 the server never learns the app closed. A closed app stayed in its SyncPlay group, which then waited
-on it at every seek or item change (until removed on 10.11 and 12.0, up to 30 seconds from 12.1).
+on it at every seek or item change (until removed on 10.11 and 12.0, up to 30 seconds from 12.1). It
+also kept a paused "now playing" until the server's idle check, 5 to 10 minutes later.
 
 ## Decision
 
@@ -18,14 +19,16 @@ session other than the cold-launch phantom is active (`PhantomSessionService.IsA
 window is two poll waits. When the app closes a poll (the request's abort token) and no other poll is
 open, the window shrinks to a 10-second grace (`QueueingSessionController.MarkPollEnded`).
 
-The SyncPlay leave asks `ReapDecision.IsLongPollAppClosed`, and the cast list reads the same poll
-window through `QueueingSessionController.IsSessionActive`, so both answer "is it gone?" the same way.
+The SyncPlay leave and the playback reap (playing or paused, `ReapDecision.Decide`) read the app's
+liveness once per sweep through `ReapDecision.ReadLiveness`, and the cast list reads the same poll window through
+`QueueingSessionController.IsSessionActive`, so all three answer "is it gone?" the same way.
 
 ## Consequences
 
-- A closed app leaves its group within seconds. Measured on 2026-10-29 on a Streaming Stick 4K with
-  JellyRock 3.3.0 and Jellyfin 12.4.0 behind Traefik: the Roku closed its poll on **Home** (Traefik
-  logged 499), and the leave fired 12 to 15 seconds later with `app closed its poll: True`.
+- A closed app leaves its group, and its playback is reaped, within seconds. Measured on 2026-10-29
+  on a Streaming Stick 4K with JellyRock 3.3.0 and Jellyfin 12.4.0 behind Traefik: the Roku closed its
+  poll on **Home** (Traefik logged 499), and the leave and the paused reap each fired 12 to 15 seconds
+  later with `app closed its poll: True`.
 - An app that never polls (HTTP, or one without the long poll) never counts as closed. On HTTP the
   server ends the session itself when the socket drops.
 - The grace depends on the app retrying a failed poll within a few seconds (it retries after 1, 2
@@ -35,6 +38,12 @@ window through `QueueingSessionController.IsSessionActive`, so both answer "is i
   more than about 7 seconds takes a live viewer out of the group, and they rejoin by hand. Accepted
   because the outage is rare and stalls playback anyway. If it is reported, the fix is in the app: retry
   a failed poll at a flat second for the first 10 seconds after a healthy poll.
+- The same outage, or a network drop past the two-wait window, also reaps a live viewer's playback,
+  paused or playing. The viewer doesn't notice; only the server does. Measured on 2026-10-29 on a
+  Roku Ultra with JellyRock 3.2.0 and Jellyfin 12.4.0: a paused session was reaped 31 to 36 seconds
+  into a 70-second drop and kept its paused position. On **Play** it resumed with no error and was back
+  on the dashboard within 10 seconds, both on direct play and on a transcode (a 1 Mbps cap), where
+  the player went on fetching segments.
 - If a Roku or a proxy stops passing the close on, behavior falls back to the two-wait window, which
   is still correct, only slower.
 
