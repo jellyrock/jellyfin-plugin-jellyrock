@@ -23,8 +23,8 @@ http the session socket drops and Jellyfin takes the Roku out of the group withi
 nothing drops, so the group keeps a member that never answers. The others then wait on it at every
 seek or change of video, and on servers before 12.1 they wait until it is gone.
 
-The plugin closes that gap. When the Roku closes its poll connection and opens no new one within a
-few seconds, the plugin takes it out of its group. When the connection goes quiet instead (for
+The plugin closes that gap. When the Roku closes its poll connection and opens no new one, the plugin
+takes it out of its group within about 15 seconds. When the connection goes quiet instead (for
 example, the Roku loses its network), the plugin waits until the Roku has gone two poll cycles without
 polling, which is under a minute. Either way it leaves only the group: the Roku stays available for
 [cold-launch cast](cold-launch-cast.md).

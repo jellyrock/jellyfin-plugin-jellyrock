@@ -31,7 +31,7 @@ Jellyfin.Plugin.JellyRock/
     QueueingSessionController.cs      # ISessionController: queues commands + poll-liveness gating (remote control)
     JellyRockSessionService.cs        # attaches the controller + forces the capability (remote control)
     CommandEnvelope.cs                # the { MessageType, Data, MessageId } wire shape (remote control)
-    PlaybackReaperService.cs          # sweeps + reaps idle JellyRock playback sessions (cleanup, jellyrock#43)
+    PlaybackReaperService.cs          # sweeps JellyRock sessions: reaps idle playback (cleanup, jellyrock#43), leaves the SyncPlay group of a closed app (#32)
     ReapDecision.cs                   # pure reap-eligibility rule + resume-position correction (cleanup)
     PhantomSessionService.cs          # publishes/revokes the closed-app cast phantom (cold-launch cast, #668)
     PhantomSessionController.cs       # fires the ECP /launch wake for a phantom (cold-launch cast)

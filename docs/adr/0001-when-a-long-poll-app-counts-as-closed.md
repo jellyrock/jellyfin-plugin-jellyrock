@@ -9,8 +9,7 @@
 On an HTTPS server JellyRock reaches Jellyfin through this plugin's long poll, because Roku has no
 `wss://`. A Roku app can't run code when the user presses **Home**, and no socket drops on HTTPS, so
 the server never learns the app closed. A closed app stayed in its SyncPlay group, which then waited
-on it at every seek or item change (until removed on 10.11 and 12.0, up to 30 seconds from 12.1). It
-also kept a paused "now playing" until the server's idle check, 5 to 10 minutes later.
+on it at every seek or item change (until removed on 10.11 and 12.0, up to 30 seconds from 12.1).
 
 ## Decision
 
@@ -19,15 +18,14 @@ session other than the cold-launch phantom is active (`PhantomSessionService.IsA
 window is two poll waits. When the app closes a poll (the request's abort token) and no other poll is
 open, the window shrinks to a 10-second grace (`QueueingSessionController.MarkPollEnded`).
 
-One rule, `ReapDecision.IsLongPollAppClosed`, drives every "is it gone?" question: the SyncPlay leave,
-the playback reap (playing or paused) and the cast list.
+The SyncPlay leave asks `ReapDecision.IsLongPollAppClosed`, and the cast list reads the same poll
+window through `QueueingSessionController.IsSessionActive`, so both answer "is it gone?" the same way.
 
 ## Consequences
 
-- A closed app leaves its group, and its playback is reaped, within seconds. Measured on 2026-10-29
-  on a Streaming Stick 4K with JellyRock 3.3.0 and Jellyfin 12.4.0 behind Traefik: the Roku closed its
-  poll on **Home** (Traefik logged 499), and the leave and the paused reap each fired 12 to 15 seconds
-  later with `app closed its poll: True`.
+- A closed app leaves its group within seconds. Measured on 2026-10-29 on a Streaming Stick 4K with
+  JellyRock 3.3.0 and Jellyfin 12.4.0 behind Traefik: the Roku closed its poll on **Home** (Traefik
+  logged 499), and the leave fired 12 to 15 seconds later with `app closed its poll: True`.
 - An app that never polls (HTTP, or one without the long poll) never counts as closed. On HTTP the
   server ends the session itself when the socket drops.
 - The grace depends on the app retrying a failed poll within a few seconds (it retries after 1, 2

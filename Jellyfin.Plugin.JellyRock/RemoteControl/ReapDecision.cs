@@ -3,10 +3,10 @@ using System;
 namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 
 /// <summary>
-/// Pure decision logic for <see cref="PlaybackReaperService"/>, deliberately free of Jellyfin session
-/// types so the two judgment calls — whether a session should be reaped, and what resume position to
-/// record when it is — are trivially unit-testable with primitive inputs. The service reads the live
-/// <c>SessionInfo</c> fields and forwards them here; all the reasoning lives in these two methods.
+/// Pure decision logic for <see cref="PlaybackReaperService"/>, free of Jellyfin session types so its
+/// judgment calls (whether to reap a session, what resume position to record, and whether a closed app
+/// leaves its SyncPlay group) are unit-testable with primitive inputs. The service reads the live
+/// <c>SessionInfo</c> fields and controller state and forwards them here; all the reasoning lives here.
 /// </summary>
 public static class ReapDecision
 {
