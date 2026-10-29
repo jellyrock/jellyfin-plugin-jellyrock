@@ -36,6 +36,11 @@ A paused session keeps its paused position as the resume point.
 
 ## Requirements
 
-An **HTTPS** Jellyfin server (10.11+) and JellyRock **v1.15.0 or newer**, the release that moved
-playback progress reporting to a ~10s cadence, which the cleanup relies on to detect a closed app safely.
-On older clients the plugin does nothing and Jellyfin's default idle handling applies (unchanged).
+An **HTTPS** Jellyfin server (10.11+). Each case needs a JellyRock version:
+
+- **The app has closed:** JellyRock **v2.23.0 or newer**, the release that added the long poll.
+- **The check-ins stopped:** JellyRock **v1.15.0 or newer**, the release that moved playback progress
+  reporting to a ~10s cadence, which the 60-second threshold relies on.
+
+On clients older than v1.15.0 the plugin does nothing and Jellyfin's default idle handling applies
+(unchanged).
