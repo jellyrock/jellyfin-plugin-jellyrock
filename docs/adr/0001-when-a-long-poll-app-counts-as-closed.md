@@ -30,6 +30,11 @@ window through `QueueingSessionController.IsSessionActive`, so both answer "is i
   server ends the session itself when the socket drops.
 - The grace depends on the app retrying a failed poll within a few seconds (it retries after 1, 2
   and 4 seconds). A slower retry in a future app would make the plugin drop a live app.
+- A reverse proxy or tunnel that restarts mid-poll looks the same as an app that exited: the server
+  sees the request aborted. The app's retries fail at the proxy, with growing gaps, so an outage of
+  more than about 7 seconds takes a live viewer out of the group, and they rejoin by hand. Accepted
+  because the outage is rare and stalls playback anyway. If it is reported, the fix is in the app: retry
+  a failed poll at a flat second for the first 10 seconds after a healthy poll.
 - If a Roku or a proxy stops passing the close on, behavior falls back to the two-wait window, which
   is still correct, only slower.
 
