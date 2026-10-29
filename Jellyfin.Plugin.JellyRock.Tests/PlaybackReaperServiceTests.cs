@@ -297,6 +297,21 @@ public class PlaybackReaperServiceTests
     }
 
     [Fact]
+    public async Task SweepAsync_NotPausedAppStillPolling_StaleCheckIns_DoesNotReap()
+    {
+        // A paused SyncPlay session can keep IsPaused=false on the server while check-ins go stale.
+        // The app is still open, so the check-in rule must not reap it.
+        var session = BuildSession(
+            JellyRockSessionService.JellyRockClientName, checkInSecondsAgo: 90, isPaused: false, positionSeconds: 600, id: "syncplay-paused-open");
+        AttachController(session, inGroup: false, polled: true, closed: false);
+        _sessionManager.Sessions.Returns(new[] { session });
+
+        await BuildService().SweepAsync();
+
+        await _sessionManager.DidNotReceive().OnPlaybackStopped(Arg.Any<PlaybackStopInfo>());
+    }
+
+    [Fact]
     public async Task SweepAsync_PausedAppThatNeverPolled_DoesNotReap()
     {
         // An app on an HTTP server, or one too old for the long poll, never polls: its paused session is

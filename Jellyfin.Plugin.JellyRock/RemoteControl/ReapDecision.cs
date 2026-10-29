@@ -28,30 +28,28 @@ public static class ReapDecision
     /// playing (not paused) whose last real playback check-in is older than
     /// <paramref name="thresholdSeconds"/>.
     /// <para>
-    /// Paused sessions are deliberately excluded. A paused JellyRock app stops sending progress
-    /// check-ins (its report timer stops on pause), so a genuinely-paused-but-alive session would look
-    /// stale here and be wrongly reaped. Abandoned-while-paused is therefore left to Jellyfin's own
-    /// idle/inactive reaping rather than fast-killed by this plugin — a paused transcode is low-cost
-    /// and the resume-position correction below does not apply while paused.
+    /// An open app is never reaped by this rule (see <paramref name="appOpen"/>). A paused JellyRock app
+    /// stops sending progress check-ins (its report timer stops on pause), and in a SyncPlay group the
+    /// server can keep <c>IsPaused=false</c>, so a paused-but-alive session looks stale here. The open
+    /// poll or socket is the signal that it is alive, and it does not depend on check-ins.
     /// </para>
     /// <para>
-    /// This exclusion is load-bearing and depends on client behavior that has been verified in the
-    /// JellyRock source: on pause the client sends exactly one progress report with <c>IsPaused=true</c>
-    /// and then stops its report timer (VideoPlayerView.bs <c>onState</c> "paused" branch). That single
-    /// report is why <paramref name="isPaused"/> can be trusted here even though check-ins then go stale —
-    /// the server's paused flag is set before the silence begins. If a future client stopped reporting on
-    /// pause WITHOUT that final paused report, this gate would no longer protect paused-but-alive
-    /// sessions, so keep the two in sync.
+    /// Paused sessions are also excluded. On pause the client sends exactly one progress report with
+    /// <c>IsPaused=true</c> and then stops its report timer (VideoPlayerView.bs <c>onState</c> "paused"
+    /// branch), so the server's paused flag is normally set before the silence begins. Abandoned-while-paused
+    /// is left to Jellyfin's own idle/inactive reaping, and the resume-position correction below does not
+    /// apply while paused.
     /// </para>
     /// <para>
-    /// A paused app that has closed is still reaped, through <see cref="IsClosedAppReapable"/>: its
-    /// closed long poll is a signal that does not depend on check-ins.
+    /// A closed app is still reaped, paused or not, through <see cref="IsClosedAppReapable"/>. This rule
+    /// stays as the fallback for apps that never poll.
     /// </para>
     /// </summary>
     /// <param name="client">The session's <c>Client</c> string.</param>
     /// <param name="appVersion">The session's <c>ApplicationVersion</c> string.</param>
     /// <param name="hasNowPlaying">Whether the session currently has a NowPlayingItem.</param>
     /// <param name="isPaused">Whether the session's playstate is paused.</param>
+    /// <param name="appOpen">Whether any controller of the session says the app is open.</param>
     /// <param name="lastPlaybackCheckIn">The session's last real playback check-in (UTC).</param>
     /// <param name="nowUtc">The current time (UTC).</param>
     /// <param name="thresholdSeconds">Stale threshold in seconds.</param>
@@ -61,6 +59,7 @@ public static class ReapDecision
         string? appVersion,
         bool hasNowPlaying,
         bool isPaused,
+        bool appOpen,
         DateTime lastPlaybackCheckIn,
         DateTime nowUtc,
         int thresholdSeconds)
@@ -69,6 +68,7 @@ public static class ReapDecision
             && HasFastReportCadence(appVersion)
             && hasNowPlaying
             && !isPaused
+            && !appOpen
             && (nowUtc - lastPlaybackCheckIn).TotalSeconds > thresholdSeconds;
     }
 

@@ -152,18 +152,20 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
             var isPaused = session.PlayState?.IsPaused ?? false;
             var hasNowPlaying = session.NowPlayingItem is not null;
             var queueing = session.SessionControllers.OfType<QueueingSessionController>().FirstOrDefault();
+            var appOpen = PhantomSessionService.IsAppOpen(session);
             var closedApp = queueing is not null
                 && ReapDecision.IsClosedAppReapable(
                     session.Client,
                     hasNowPlaying,
                     queueing.HasPolled,
-                    PhantomSessionService.IsAppOpen(session));
+                    appOpen);
             if (!closedApp
                 && !ReapDecision.IsReapable(
                     session.Client,
                     session.ApplicationVersion,
                     hasNowPlaying,
                     isPaused,
+                    appOpen,
                     session.LastPlaybackCheckIn,
                     now,
                     StaleThresholdSeconds))

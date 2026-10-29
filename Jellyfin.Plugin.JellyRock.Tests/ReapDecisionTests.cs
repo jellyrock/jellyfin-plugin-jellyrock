@@ -23,7 +23,7 @@ public class ReapDecisionTests
     public void IsReapable_StalePlayingJellyRockSession_True()
     {
         Assert.True(ReapDecision.IsReapable(
-            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: false,
+            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-61), Now, ThresholdSeconds));
     }
 
@@ -31,7 +31,7 @@ public class ReapDecisionTests
     public void IsReapable_NonJellyRockClient_False()
     {
         Assert.False(ReapDecision.IsReapable(
-            "Jellyfin Web", CurrentVersion, hasNowPlaying: true, isPaused: false,
+            "Jellyfin Web", CurrentVersion, hasNowPlaying: true, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-300), Now, ThresholdSeconds));
     }
 
@@ -39,7 +39,7 @@ public class ReapDecisionTests
     public void IsReapable_NoNowPlaying_False()
     {
         Assert.False(ReapDecision.IsReapable(
-            JellyRock, CurrentVersion, hasNowPlaying: false, isPaused: false,
+            JellyRock, CurrentVersion, hasNowPlaying: false, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-300), Now, ThresholdSeconds));
     }
 
@@ -49,7 +49,17 @@ public class ReapDecisionTests
         // Paused sessions stop sending check-ins, so they look stale; excluded to avoid reaping a
         // paused-but-alive app (left to Jellyfin's own paused/idle handling).
         Assert.False(ReapDecision.IsReapable(
-            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: true,
+            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: true, appOpen: false,
+            lastPlaybackCheckIn: Now.AddSeconds(-300), Now, ThresholdSeconds));
+    }
+
+    [Fact]
+    public void IsReapable_AppOpen_False()
+    {
+        // An open app is alive whatever its check-ins say (a paused SyncPlay session can keep
+        // IsPaused=false while check-ins go stale).
+        Assert.False(ReapDecision.IsReapable(
+            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: false, appOpen: true,
             lastPlaybackCheckIn: Now.AddSeconds(-300), Now, ThresholdSeconds));
     }
 
@@ -57,7 +67,7 @@ public class ReapDecisionTests
     public void IsReapable_FreshCheckIn_False()
     {
         Assert.False(ReapDecision.IsReapable(
-            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: false,
+            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-30), Now, ThresholdSeconds));
     }
 
@@ -66,7 +76,7 @@ public class ReapDecisionTests
     {
         // Strictly greater-than: at exactly the threshold the session is not yet reaped.
         Assert.False(ReapDecision.IsReapable(
-            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: false,
+            JellyRock, CurrentVersion, hasNowPlaying: true, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-ThresholdSeconds), Now, ThresholdSeconds));
     }
 
@@ -74,7 +84,7 @@ public class ReapDecisionTests
     public void IsReapable_ClientMatchIsCaseInsensitive_True()
     {
         Assert.True(ReapDecision.IsReapable(
-            "jellyrock", CurrentVersion, hasNowPlaying: true, isPaused: false,
+            "jellyrock", CurrentVersion, hasNowPlaying: true, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-90), Now, ThresholdSeconds));
     }
 
@@ -84,7 +94,7 @@ public class ReapDecisionTests
         // v1.14.0 reports every ~30s, so the 60s threshold has too little margin — excluded, left to
         // Jellyfin's native idle reap (their behavior today, no regression).
         Assert.False(ReapDecision.IsReapable(
-            JellyRock, "1.14.0", hasNowPlaying: true, isPaused: false,
+            JellyRock, "1.14.0", hasNowPlaying: true, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-90), Now, ThresholdSeconds));
     }
 
@@ -93,7 +103,7 @@ public class ReapDecisionTests
     {
         // v1.15.0 is the first version with ~10s reports — eligible.
         Assert.True(ReapDecision.IsReapable(
-            JellyRock, "1.15.0", hasNowPlaying: true, isPaused: false,
+            JellyRock, "1.15.0", hasNowPlaying: true, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-90), Now, ThresholdSeconds));
     }
 
@@ -105,7 +115,7 @@ public class ReapDecisionTests
     {
         // Fail safe toward not reaping when we can't establish the report cadence.
         Assert.False(ReapDecision.IsReapable(
-            JellyRock, appVersion, hasNowPlaying: true, isPaused: false,
+            JellyRock, appVersion, hasNowPlaying: true, isPaused: false, appOpen: false,
             lastPlaybackCheckIn: Now.AddSeconds(-300), Now, ThresholdSeconds));
     }
 
