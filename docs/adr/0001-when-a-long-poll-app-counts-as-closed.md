@@ -38,6 +38,12 @@ liveness once per sweep through `ReapDecision.ReadLiveness`, and the cast list r
   more than about 7 seconds takes a live viewer out of the group, and they rejoin by hand. Accepted
   because the outage is rare and stalls playback anyway. If it is reported, the fix is in the app: retry
   a failed poll at a flat second for the first 10 seconds after a healthy poll.
+- The same outage, or a network drop past the two-wait window, also reaps a live viewer's playback,
+  paused or playing. The viewer doesn't notice; only the server does. Measured on 2026-10-29 on a
+  Roku Ultra with JellyRock 3.2.0 and Jellyfin 12.4.0: a paused session was reaped 31 to 36 seconds
+  into a 70-second drop and kept its paused position. On **Play** it resumed with no error and was back
+  on the dashboard within 10 seconds, both on direct play and on a transcode (a 1 Mbps cap), where
+  the player went on fetching segments.
 - If a Roku or a proxy stops passing the close on, behavior falls back to the two-wait window, which
   is still correct, only slower.
 
