@@ -69,6 +69,35 @@ public static class ReapDecision
     }
 
     /// <summary>
+    /// Whether a JellyRock app that polls the plugin has closed: it has polled at least once, and no
+    /// controller of its session says the app is open (<see cref="PhantomSessionService.IsAppOpen"/>).
+    /// The first condition keeps an app that never polls (on an HTTP server, or too old for the long
+    /// poll) from reading as closed; on HTTP the server ends the session itself when the socket drops.
+    /// </summary>
+    /// <param name="hasPolled">Whether the app has polled the plugin at least once.</param>
+    /// <param name="appOpen">Whether any controller of the session says the app is open.</param>
+    /// <returns><c>true</c> if the app has closed.</returns>
+    public static bool IsLongPollAppClosed(bool hasPolled, bool appOpen) => hasPolled && !appOpen;
+
+    /// <summary>
+    /// Whether to take a JellyRock session out of its SyncPlay group: the session is in a group and the
+    /// app has closed (<see cref="IsLongPollAppClosed"/>). A Roku app can't send <c>Leave</c> as it exits,
+    /// and on HTTPS no socket drops to end the session, so without this the group keeps a member that
+    /// never reports ready and waits on it at every seek or item change.
+    /// </summary>
+    /// <param name="client">The session's <c>Client</c> string.</param>
+    /// <param name="inSyncPlayGroup">Whether the server's frames to the session put it in a group.</param>
+    /// <param name="hasPolled">Whether the app has polled the plugin at least once.</param>
+    /// <param name="appOpen">Whether any controller of the session says the app is open.</param>
+    /// <returns><c>true</c> if the session should leave its group.</returns>
+    public static bool ShouldLeaveSyncPlayGroup(string? client, bool inSyncPlayGroup, bool hasPolled, bool appOpen)
+    {
+        return string.Equals(client, JellyRockSessionService.JellyRockClientName, StringComparison.OrdinalIgnoreCase)
+            && inSyncPlayGroup
+            && IsLongPollAppClosed(hasPolled, appOpen);
+    }
+
+    /// <summary>
     /// Whether the reported JellyRock version reports playback progress every ~10s (v1.15.0+), so the
     /// stale threshold has enough margin. Unparseable / missing versions return <c>false</c>.
     /// </summary>

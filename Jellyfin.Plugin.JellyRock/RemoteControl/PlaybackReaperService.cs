@@ -1,7 +1,10 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Controller.SyncPlay;
+using MediaBrowser.Controller.SyncPlay.Requests;
 using MediaBrowser.Model.Session;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -29,6 +32,12 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 /// eligibility rule and the resume-position correction (which keeps the recorded resume point at the
 /// user's real stop rather than the server's forward-extrapolated one).
 /// </para>
+/// <para>
+/// The same sweep takes a closed JellyRock app out of its SyncPlay group
+/// (<see cref="ReapDecision.ShouldLeaveSyncPlayGroup"/>), through the <c>LeaveGroup</c> call the server
+/// makes itself when a session ends. It leaves only the group and never ends the session, because the
+/// cold-launch wake publishes its phantom cast target on that session.
+/// </para>
 /// </summary>
 public sealed class PlaybackReaperService : IHostedService, IDisposable
 {
@@ -50,13 +59,15 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
     private const int StaleThresholdSeconds = 60;
 
     /// <summary>
-    /// Sweep cadence, in seconds. Reap latency is <c>StaleThresholdSeconds</c> plus at most one sweep,
-    /// so a 15s sweep reaps a closed app within ~60-75s. A whole-list scan is negligible, so — unlike
-    /// Jellyfin's SessionManager — this worker does not bother starting/stopping the timer with playback.
+    /// Sweep cadence, in seconds. Every action lands at most one sweep after its condition holds: a
+    /// playback reap after <c>StaleThresholdSeconds</c>, and a SyncPlay leave a few seconds after the app
+    /// closes its poll, which is why the sweep is short. A whole-list scan is negligible, so, unlike
+    /// Jellyfin's SessionManager, this worker does not start and stop the timer with playback.
     /// </summary>
-    private const int SweepIntervalSeconds = 15;
+    private const int SweepIntervalSeconds = 5;
 
     private readonly ISessionManager _sessionManager;
+    private readonly ISyncPlayManager _syncPlayManager;
     private readonly ILogger<PlaybackReaperService> _logger;
 
     private PeriodicTimer? _timer;
@@ -66,10 +77,12 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
     /// Initializes a new instance of the <see cref="PlaybackReaperService"/> class.
     /// </summary>
     /// <param name="sessionManager">The session manager.</param>
+    /// <param name="syncPlayManager">The SyncPlay manager.</param>
     /// <param name="logger">Logger.</param>
-    public PlaybackReaperService(ISessionManager sessionManager, ILogger<PlaybackReaperService> logger)
+    public PlaybackReaperService(ISessionManager sessionManager, ISyncPlayManager syncPlayManager, ILogger<PlaybackReaperService> logger)
     {
         _sessionManager = sessionManager;
+        _syncPlayManager = syncPlayManager;
         _logger = logger;
     }
 
@@ -122,9 +135,9 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// Scans the current sessions once and reaps every JellyRock session eligible per
-    /// <see cref="ReapDecision.IsReapable"/>. Internal so the test project can drive one sweep directly
-    /// without the timer.
+    /// Scans the current sessions once: takes every closed JellyRock app out of its SyncPlay group, and
+    /// reaps every JellyRock session eligible per <see cref="ReapDecision.IsReapable"/>. Internal so the
+    /// test project can drive one sweep directly without the timer.
     /// </summary>
     /// <returns>A task that completes when the sweep finishes.</returns>
     internal async Task SweepAsync()
@@ -133,6 +146,8 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
 
         foreach (var session in _sessionManager.Sessions)
         {
+            LeaveSyncPlayGroupIfClosed(session);
+
             if (!ReapDecision.IsReapable(
                     session.Client,
                     session.ApplicationVersion,
@@ -180,6 +195,40 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
                 // (a session that won't clear), not routine noise — one line per failed sweep at most.
                 _logger.LogWarning(ex, "[JellyRock] error reaping idle playback session {SessionId}", session.Id);
             }
+        }
+    }
+
+    private void LeaveSyncPlayGroupIfClosed(SessionInfo session)
+    {
+        var controller = session.SessionControllers.OfType<QueueingSessionController>().FirstOrDefault();
+        if (controller is null
+            || !ReapDecision.ShouldLeaveSyncPlayGroup(
+                session.Client,
+                controller.IsInSyncPlayGroup,
+                controller.HasPolled,
+                PhantomSessionService.IsAppOpen(session)))
+        {
+            return;
+        }
+
+        try
+        {
+            _syncPlayManager.LeaveGroup(session, new LeaveGroupRequest(), CancellationToken.None);
+            _logger.LogInformation(
+                "[JellyRock] left the SyncPlay group of closed session {SessionId} ({DeviceName}); app closed its poll: {PollClosed}",
+                session.Id,
+                session.DeviceName,
+                controller.PollClosedByClient);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[JellyRock] error leaving the SyncPlay group of session {SessionId}", session.Id);
+        }
+        finally
+        {
+            // The server's GroupLeft frame clears this too. Clearing it here as well means a leave the
+            // server refused is tried once, not on every sweep.
+            controller.ForgetSyncPlayGroup();
         }
     }
 }

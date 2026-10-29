@@ -21,7 +21,7 @@ Updates then surface in the Dashboard automatically. Each release's zip + `md5` 
 
 ## What it does
 
-Three independent, server-assisted capabilities for JellyRock:
+Four independent, server-assisted capabilities for JellyRock:
 
 - **[Cold-launch cast](docs/features/cold-launch-cast.md)**: cast to a Roku even when JellyRock is
   *closed*. The plugin advertises the closed device as a "Play On" target and wakes it into the item over
@@ -34,13 +34,16 @@ Three independent, server-assisted capabilities for JellyRock:
   fast. Already near-instant on **http** with no plugin; the plugin **extends the same cleanup to https**,
   reaping the lingering session in ~60s (instead of Jellyfin's ~5-10 min) and, on servers before 12.0,
   an accurate resume point (12.0 records that itself).
+- **[SyncPlay on HTTPS](docs/features/syncplay.md)**: watch together in a Jellyfin SyncPlay group on an
+  **https** server, and leave the group when JellyRock closes. Works with no plugin on **http**.
 
 ## Do I need it?
 
 - **Cold-launch cast** needs the plugin on any server (http or https) that shares your Roku's LAN.
-- **Remote control** and **playback cleanup** already work on **http** with no plugin (JellyRock uses
-  Jellyfin's native session socket). Install the plugin for these two only if your server is **https**,
-  where Roku can't open that socket and the plugin fills the gap.
+- **Remote control**, **playback cleanup** and **SyncPlay** already work on **http** with no plugin
+  (JellyRock uses Jellyfin's native session socket). Install the plugin for these only if your server
+  is **https**, where Roku can't open that socket and the plugin fills the gap. On https, JellyRock
+  offers SyncPlay only when the plugin is installed.
 
 ## Settings
 

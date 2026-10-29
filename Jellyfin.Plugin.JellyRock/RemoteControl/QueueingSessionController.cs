@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Jellyfin.Extensions.Json;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Session;
 
@@ -31,16 +31,16 @@ public sealed class QueueingSessionController : ISessionController
     // stops draining (a dead client is about to lapse out of the cast list anyway).
     private const int QueueCapacity = 256;
 
-    // Serialize command payloads with STRING enums so the wire matches what Jellyfin's session
-    // WebSocket sends and what the JellyRock client parses (playstateVerb / GeneralCommand.Name look
-    // up string values like "Pause" / "NextTrack" / "DisplayContent"). The System.Text.Json default
-    // emits enums as INTEGERS, which the client can't match — so without this every enum-carrying
-    // command (Playstate, GeneralCommand nav) silently falls through to "ignore". Play survives only
-    // because its action defaults sensibly and rides on ItemIds.
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
+    // How long a session stays live after the app closed its poll connection with no new poll open.
+    // A live app that loses a poll retries after 1s, then 2s, then 4s (JellyRock's backoff), so 10s
+    // covers its first three retries. A closed app drops its connection as it exits, so this is how
+    // fast a Home press is noticed; a network blip closes nothing and falls back to the full window.
+    private const int ClosedPollGraceSeconds = 10;
+
+    // Serialize payloads with the options Jellyfin's session socket uses, so the long poll matches the
+    // socket field for field: enums as names, GUIDs without dashes, nulls left out, the server's date
+    // format. The app parses both transports with one parser, so any difference surfaces on a device.
+    private static readonly JsonSerializerOptions SerializerOptions = JsonDefaults.Options;
 
     // Bounded + multi-reader: DropOldest bounds memory if a client stops draining; SingleReader is
     // deliberately NOT set, so two briefly-overlapping polls for one session (an abandoned-but-still
@@ -63,10 +63,41 @@ public sealed class QueueingSessionController : ISessionController
     private readonly object _ackGate = new();
     private readonly List<CommandEnvelope> _unacked = new();
 
+    // Guards the open-poll count together with the shrink of _freshUntilTicks on a closed poll, so a
+    // poll that opens while another closes can never have its fresh window cut short.
+    private readonly object _pollGate = new();
+
+    private readonly long _closedPollGraceTicks;
+
     // UtcNow.Ticks after which this controller is stale. 0 (never polled) reads as stale, so a session
     // is never advertised as controllable before it actually polls. Stored as a single value (not
     // lastPoll + grace separately) so a concurrent read can't observe a torn lastPoll/grace pair.
     private long _freshUntilTicks;
+
+    private int _openPolls;
+    private volatile bool _pollClosedByClient;
+
+    // Whether the server's frames to this session say it is in a SyncPlay group. The server sends every
+    // frame to every controller of a session, polled or not, so this controller sees each join and leave.
+    private volatile bool _inSyncPlayGroup;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="QueueingSessionController"/> class.
+    /// </summary>
+    public QueueingSessionController()
+        : this(TimeSpan.FromSeconds(ClosedPollGraceSeconds))
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="QueueingSessionController"/> class with a chosen
+    /// grace after a closed poll, so tests need not wait out the real one.
+    /// </summary>
+    /// <param name="closedPollGrace">How long the session stays live after the app closes its poll.</param>
+    internal QueueingSessionController(TimeSpan closedPollGrace)
+    {
+        _closedPollGraceTicks = closedPollGrace.Ticks;
+    }
 
     /// <inheritdoc />
     public bool IsSessionActive => IsPollFresh();
@@ -75,17 +106,69 @@ public sealed class QueueingSessionController : ISessionController
     public bool SupportsMediaControl => IsPollFresh();
 
     /// <summary>
-    /// Records a poll and refreshes the liveness window. The window is <c>2 × waitMs</c> — long enough
+    /// Gets a value indicating whether the app has polled this controller at least once. An app that
+    /// never polls (one on an HTTP server, or one too old for the long poll) is never read as closed.
+    /// </summary>
+    public bool HasPolled => Interlocked.Read(ref _freshUntilTicks) != 0;
+
+    /// <summary>
+    /// Gets a value indicating whether the last poll ended because the app closed its connection.
+    /// </summary>
+    public bool PollClosedByClient => _pollClosedByClient;
+
+    /// <summary>
+    /// Gets a value indicating whether the server's last SyncPlay frame to this session put it in a group.
+    /// </summary>
+    public bool IsInSyncPlayGroup => _inSyncPlayGroup;
+
+    /// <summary>
+    /// Records a poll and refreshes the liveness window. The window is <c>2 × waitMs</c>: long enough
     /// that a healthy client (which re-polls every <c>waitMs</c>) never flaps out between polls, short
-    /// enough that a closed app drops from the cast list within ~2 poll cycles. Derived from the
-    /// client's own requested hold, so there is no tuning knob to misconfigure.
+    /// enough that a silent app drops from the cast list within two poll cycles. Derived from the
+    /// client's own requested hold, so there is no tuning knob to misconfigure. Pair each call with
+    /// <see cref="MarkPollEnded"/>, which shortens the window when the app closes its poll.
     /// </summary>
     /// <param name="waitMs">The poll's requested hold ceiling, in milliseconds (already clamped by the caller).</param>
     public void MarkPolled(int waitMs)
     {
         var graceTicks = TimeSpan.FromMilliseconds(2L * waitMs).Ticks;
-        Interlocked.Exchange(ref _freshUntilTicks, DateTime.UtcNow.Ticks + graceTicks);
+        lock (_pollGate)
+        {
+            _openPolls++;
+            _pollClosedByClient = false;
+            Interlocked.Exchange(ref _freshUntilTicks, DateTime.UtcNow.Ticks + graceTicks);
+        }
     }
+
+    /// <summary>
+    /// Records that a poll ended. When the app closed the connection and no other poll is open, the
+    /// liveness window shrinks to <see cref="ClosedPollGraceSeconds"/>: an app that exits closes its
+    /// poll, so a closed app reads as gone within seconds instead of a full window.
+    /// </summary>
+    /// <param name="closedByClient">Whether the poll ended because the client closed the connection.</param>
+    public void MarkPollEnded(bool closedByClient)
+    {
+        lock (_pollGate)
+        {
+            _openPolls = Math.Max(0, _openPolls - 1);
+            if (!closedByClient || _openPolls > 0)
+            {
+                return;
+            }
+
+            _pollClosedByClient = true;
+            var closedUntil = DateTime.UtcNow.Ticks + _closedPollGraceTicks;
+            if (closedUntil < Interlocked.Read(ref _freshUntilTicks))
+            {
+                Interlocked.Exchange(ref _freshUntilTicks, closedUntil);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Records that the session left its SyncPlay group, for a leave the plugin made on its behalf.
+    /// </summary>
+    public void ForgetSyncPlayGroup() => _inSyncPlayGroup = false;
 
     /// <inheritdoc />
     public Task SendMessage<T>(SessionMessageType name, Guid messageId, T data, CancellationToken cancellationToken)
@@ -98,7 +181,7 @@ public sealed class QueueingSessionController : ISessionController
         }
 
         // Pre-serialize to a JsonElement so the payload is captured by its concrete runtime type (a
-        // boxed `object` property would risk serializing empty), with string enums (see above).
+        // boxed `object` property would risk serializing empty), with the socket's options (see above).
         JsonElement payload;
         try
         {
@@ -107,6 +190,11 @@ public sealed class QueueingSessionController : ISessionController
         catch (NotSupportedException)
         {
             return Task.CompletedTask; // an unserializable command can't be delivered anyway
+        }
+
+        if (name == SessionMessageType.SyncPlayGroupUpdate)
+        {
+            TrackSyncPlayMembership(payload);
         }
 
         _queue.Writer.TryWrite(new CommandEnvelope
@@ -254,6 +342,29 @@ public sealed class QueueingSessionController : ISessionController
         if (buffer.Count > QueueCapacity)
         {
             buffer.RemoveRange(0, buffer.Count - QueueCapacity);
+        }
+    }
+
+    // GroupJoined puts the session in a group; GroupLeft, and NotInGroup (the answer to a request made
+    // outside any group), take it out. The other update types leave membership as it is.
+    private void TrackSyncPlayMembership(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object
+            || !payload.TryGetProperty("Type", out var type)
+            || type.ValueKind != JsonValueKind.String)
+        {
+            return;
+        }
+
+        switch (type.GetString())
+        {
+            case "GroupJoined":
+                _inSyncPlayGroup = true;
+                break;
+            case "GroupLeft":
+            case "NotInGroup":
+                _inSyncPlayGroup = false;
+                break;
         }
     }
 
