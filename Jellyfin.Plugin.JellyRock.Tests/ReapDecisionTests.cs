@@ -156,4 +156,50 @@ public class ReapDecisionTests
 
         Assert.Equal(runtime, corrected);
     }
+
+    [Theory]
+    [InlineData(true, true, false, true)] // polled, then closed: reap
+    [InlineData(false, true, false, false)] // never polled (HTTP, or no long poll): never read as closed
+    [InlineData(true, true, true, false)] // app open
+    [InlineData(true, false, false, false)] // nothing playing: nothing to reap
+    public void IsClosedAppReapable_FollowsThePollAndNowPlaying(bool hasPolled, bool hasNowPlaying, bool appOpen, bool expected)
+    {
+        Assert.Equal(expected, ReapDecision.IsClosedAppReapable(JellyRockSessionService.JellyRockClientName, hasNowPlaying, hasPolled, appOpen));
+    }
+
+    [Fact]
+    public void IsClosedAppReapable_NonJellyRockClient_False()
+    {
+        Assert.False(ReapDecision.IsClosedAppReapable("Jellyfin Web", hasNowPlaying: true, hasPolled: true, appOpen: false));
+    }
+
+    [Fact]
+    public void ReapPositionTicks_Paused_KeepsThePausedPosition()
+    {
+        // The auto-progress timer does not advance a paused session, so there is no drift to back out,
+        // however long ago the last check-in was.
+        var now = new DateTime(2026, 10, 29, 12, 0, 0, DateTimeKind.Utc);
+        var ticks = ReapDecision.ReapPositionTicks(
+            isPaused: true,
+            positionTicks: TimeSpan.FromSeconds(600).Ticks,
+            lastPlaybackCheckIn: now.AddMinutes(-3),
+            nowUtc: now,
+            runtimeTicks: TimeSpan.FromMinutes(90).Ticks);
+
+        Assert.Equal(TimeSpan.FromSeconds(600).Ticks, ticks);
+    }
+
+    [Fact]
+    public void ReapPositionTicks_Playing_BacksOutTheDrift()
+    {
+        var now = new DateTime(2026, 10, 29, 12, 0, 0, DateTimeKind.Utc);
+        var ticks = ReapDecision.ReapPositionTicks(
+            isPaused: false,
+            positionTicks: TimeSpan.FromSeconds(690).Ticks,
+            lastPlaybackCheckIn: now.AddSeconds(-90),
+            nowUtc: now,
+            runtimeTicks: TimeSpan.FromMinutes(90).Ticks);
+
+        Assert.Equal(TimeSpan.FromSeconds(600).Ticks, ticks);
+    }
 }

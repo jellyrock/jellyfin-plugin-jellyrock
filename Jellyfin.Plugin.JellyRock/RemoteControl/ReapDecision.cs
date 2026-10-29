@@ -43,6 +43,10 @@ public static class ReapDecision
     /// pause WITHOUT that final paused report, this gate would no longer protect paused-but-alive
     /// sessions, so keep the two in sync.
     /// </para>
+    /// <para>
+    /// A paused app that has closed is still reaped, through <see cref="IsClosedAppReapable"/>: its
+    /// closed long poll is a signal that does not depend on check-ins.
+    /// </para>
     /// </summary>
     /// <param name="client">The session's <c>Client</c> string.</param>
     /// <param name="appVersion">The session's <c>ApplicationVersion</c> string.</param>
@@ -80,6 +84,23 @@ public static class ReapDecision
     public static bool IsLongPollAppClosed(bool hasPolled, bool appOpen) => hasPolled && !appOpen;
 
     /// <summary>
+    /// Whether to reap a JellyRock session whose app has closed (<see cref="IsLongPollAppClosed"/>) with
+    /// something still playing or paused. Unlike <see cref="IsReapable"/> this needs no check-ins, so it
+    /// covers an app closed while paused, and it acts as soon as the app's poll is gone.
+    /// </summary>
+    /// <param name="client">The session's <c>Client</c> string.</param>
+    /// <param name="hasNowPlaying">Whether the session currently has a NowPlayingItem.</param>
+    /// <param name="hasPolled">Whether the app has polled the plugin at least once.</param>
+    /// <param name="appOpen">Whether any controller of the session says the app is open.</param>
+    /// <returns><c>true</c> if the session should be reaped.</returns>
+    public static bool IsClosedAppReapable(string? client, bool hasNowPlaying, bool hasPolled, bool appOpen)
+    {
+        return string.Equals(client, JellyRockSessionService.JellyRockClientName, StringComparison.OrdinalIgnoreCase)
+            && hasNowPlaying
+            && IsLongPollAppClosed(hasPolled, appOpen);
+    }
+
+    /// <summary>
     /// Whether to take a JellyRock session out of its SyncPlay group: the session is in a group and the
     /// app has closed (<see cref="IsLongPollAppClosed"/>). A Roku app can't send <c>Leave</c> as it exits,
     /// and on HTTPS no socket drops to end the session, so without this the group keeps a member that
@@ -106,6 +127,30 @@ public static class ReapDecision
     private static bool HasFastReportCadence(string? appVersion)
     {
         return Version.TryParse(appVersion, out var version) && version >= MinReportCadenceVersion;
+    }
+
+    /// <summary>
+    /// The resume position to record when reaping, in ticks: the paused position as it stands, since the
+    /// server's auto-progress timer does not advance a paused session, or else
+    /// <see cref="CorrectedPositionTicks"/>.
+    /// </summary>
+    /// <param name="isPaused">Whether the session's playstate is paused.</param>
+    /// <param name="positionTicks">The session's current PositionTicks.</param>
+    /// <param name="lastPlaybackCheckIn">The session's last real playback check-in (UTC).</param>
+    /// <param name="nowUtc">The current time (UTC).</param>
+    /// <param name="runtimeTicks">The item runtime in ticks, if known (upper clamp).</param>
+    /// <returns>The resume position in ticks.</returns>
+    public static long ReapPositionTicks(
+        bool isPaused,
+        long positionTicks,
+        DateTime lastPlaybackCheckIn,
+        DateTime nowUtc,
+        long? runtimeTicks)
+    {
+        // Paused: no drift to back out (now minus now), so only the clamp applies.
+        return isPaused
+            ? CorrectedPositionTicks(positionTicks, nowUtc, nowUtc, runtimeTicks)
+            : CorrectedPositionTicks(positionTicks, lastPlaybackCheckIn, nowUtc, runtimeTicks);
     }
 
     /// <summary>

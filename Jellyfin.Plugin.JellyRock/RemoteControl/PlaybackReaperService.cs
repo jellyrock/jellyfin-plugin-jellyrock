@@ -21,8 +21,9 @@ namespace Jellyfin.Plugin.JellyRock.RemoteControl;
 /// reaper clears it, but only after a coarse ~5-10 minute check, leaving any active transcode running
 /// and the dashboard showing a phantom "now playing" until then.
 /// <para>
-/// This worker sweeps the session list on a short cadence and reaps any JellyRock session that is
-/// actively playing but whose last real playback check-in (the client's ~10s <c>Sessions/Playing/Progress</c>
+/// This worker sweeps the session list on a short cadence and reaps any JellyRock session whose app
+/// has closed its long poll (<see cref="ReapDecision.IsClosedAppReapable"/>), playing or paused, and any
+/// that is actively playing but whose last real playback check-in (the client's ~10s <c>Sessions/Playing/Progress</c>
 /// report) has gone stale past <see cref="StaleThresholdSeconds"/>. The check-in signal is plain REST,
 /// so the mechanism itself is transport-agnostic; in practice it only fires on HTTPS, since on HTTP the
 /// native session socket has already removed the closed-app session before this window elapses (so it
@@ -148,11 +149,21 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
         {
             LeaveSyncPlayGroupIfClosed(session);
 
-            if (!ReapDecision.IsReapable(
+            var isPaused = session.PlayState?.IsPaused ?? false;
+            var hasNowPlaying = session.NowPlayingItem is not null;
+            var queueing = session.SessionControllers.OfType<QueueingSessionController>().FirstOrDefault();
+            var closedApp = queueing is not null
+                && ReapDecision.IsClosedAppReapable(
+                    session.Client,
+                    hasNowPlaying,
+                    queueing.HasPolled,
+                    PhantomSessionService.IsAppOpen(session));
+            if (!closedApp
+                && !ReapDecision.IsReapable(
                     session.Client,
                     session.ApplicationVersion,
-                    session.NowPlayingItem is not null,
-                    session.PlayState?.IsPaused ?? false,
+                    hasNowPlaying,
+                    isPaused,
                     session.LastPlaybackCheckIn,
                     now,
                     StaleThresholdSeconds))
@@ -161,7 +172,8 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
             }
 
             var nowPlaying = session.NowPlayingItem;
-            var correctedTicks = ReapDecision.CorrectedPositionTicks(
+            var correctedTicks = ReapDecision.ReapPositionTicks(
+                isPaused,
                 session.PlayState?.PositionTicks ?? 0,
                 session.LastPlaybackCheckIn,
                 now,
@@ -183,10 +195,11 @@ public sealed class PlaybackReaperService : IHostedService, IDisposable
                 }).ConfigureAwait(false);
 
                 _logger.LogInformation(
-                    "[JellyRock] reaped idle playback session {SessionId} ({DeviceName}); resume set to {Ticks} ticks",
+                    "[JellyRock] reaped idle playback session {SessionId} ({DeviceName}); resume set to {Ticks} ticks; app closed its poll: {AppClosed}",
                     session.Id,
                     session.DeviceName,
-                    correctedTicks);
+                    correctedTicks,
+                    closedApp);
             }
             catch (Exception ex)
             {
