@@ -16,6 +16,7 @@ git tags here use the 3-part `x.y.z` / `vx.y.z` form.
 
 ### Fixed
 
+- stop ending music and paused videos on HTTPS with JellyRock before v2.23.0 ([#35](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/35))
 - clear playback when JellyRock closes, and only then ([#34](https://github.com/jellyrock/jellyfin-plugin-jellyrock/pull/34))
 
 ## [0.3.0](https://github.com/jellyrock/jellyfin-plugin-jellyrock/compare/v0.2.0...v0.3.0) - 2026-07-24
