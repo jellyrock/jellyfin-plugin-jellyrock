@@ -2,7 +2,7 @@
 name: sonnet
 model: sonnet
 effort: low
-description: Execute a procedural implementation plan on the Sonnet model for token savings. Runs when the user types /sonnet with a plan path, or as a Sonnet sub-agent that a parent (usually /focus, right after it saves the plan) starts and supervises. Checks the plan is for this repo, walks its Approach literally, runs its Verification, commits, records the landing in the plan's project, and stops before push for an explicit OK (a supervised run in a gated repo whose plan touches nothing on its Always ask list pushes and reports instead). Not for judgment-heavy work. If the plan still has open forks, architectural decisions, or "we need to figure out X" gaps, stay on the judgment-grade model and finish the planning side first. Not for investigation work that has its own skill (/ci-triage, /issue-triage).
+description: Execute a procedural implementation plan on the Sonnet model. Runs when the user types /sonnet with a plan path, or as a Sonnet sub-agent that a parent (usually /focus, right after it saves the plan) starts and supervises. Checks the plan is for this repo, walks its Approach literally, runs its Verification, commits, records the landing in the plan's project, and stops before push for an explicit OK (a supervised run in a gated repo whose plan touches nothing on its Always ask list pushes and reports instead). Not for judgment-heavy work. If the plan still has open forks, architectural decisions, or "we need to figure out X" gaps, stay on the stronger model and finish the planning side first. Not for investigation work that has its own skill (/ci-triage, /issue-triage).
 ---
 
 # /sonnet: execute a procedural plan on Sonnet
