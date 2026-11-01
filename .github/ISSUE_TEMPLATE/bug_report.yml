@@ -1,0 +1,101 @@
+name: Bug report
+description: Report a bug in the JellyRock Companion plugin
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. The required fields let us reproduce it; everything else is optional.
+
+  - type: dropdown
+    id: feature
+    attributes:
+      label: Which part of the plugin?
+      options:
+        - Cold-launch cast
+        - '"Play On" remote control'
+        - Playback cleanup
+        - SyncPlay on HTTPS
+        - Installing or updating the plugin
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What you saw and what you expected instead.
+      placeholder: I cast a movie to my closed Roku from "Play On". The Roku stayed off. I expected JellyRock to open and play the movie.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps that reliably reproduce the bug.
+      placeholder: |
+        1. Close JellyRock on the Roku
+        2. Open a movie in the Jellyfin web client
+        3. Choose the Roku from "Play On"
+        4. Bug occurs
+    validations:
+      required: true
+
+  - type: input
+    id: plugin_version
+    attributes:
+      label: Plugin version
+      description: Look under **Dashboard → Plugins** on your Jellyfin server.
+      placeholder: 0.4.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: jellyfin_version
+    attributes:
+      label: Jellyfin server version
+      description: Found in your Jellyfin server's admin dashboard.
+      placeholder: 10.11.8
+    validations:
+      required: true
+
+  - type: input
+    id: jellyrock_version
+    attributes:
+      label: JellyRock app version
+      description: Found in JellyRock's Settings screen.
+      placeholder: 2.24.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: How does JellyRock connect to your server?
+      description: Several plugin features behave differently on http and https.
+      options:
+        - HTTP
+        - HTTPS
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional)
+      description: The Jellyfin server log around the time of the bug. Remove anything private first.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context (optional)
+      description: Anything else that might help, such as your Roku model, recent changes or workarounds you tried.
+    validations:
+      required: false
