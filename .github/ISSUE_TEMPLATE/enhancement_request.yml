@@ -1,0 +1,47 @@
+name: Enhancement request
+description: Suggest an improvement to something the JellyRock Companion plugin already does
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this to refine something the plugin already does. For a brand-new capability, use the Feature request form instead.
+
+  - type: dropdown
+    id: feature
+    attributes:
+      label: Which part of the plugin?
+      options:
+        - Cold-launch cast
+        - '"Play On" remote control'
+        - Playback cleanup
+        - SyncPlay on HTTPS
+        - Plugin settings
+        - Installing or updating the plugin
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_change
+    attributes:
+      label: Proposed change
+      description: What should be different about how it behaves?
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why is this better?
+      description: What does the change improve for you or for other users?
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context (optional)
+      description: Links, screenshots or anything else that helps.
+    validations:
+      required: false

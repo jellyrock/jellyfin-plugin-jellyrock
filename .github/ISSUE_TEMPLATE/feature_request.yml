@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a new capability for the JellyRock Companion plugin
+labels:
+  - new-feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. A clear problem and a proposed solution help most; everything else is optional. To improve something the plugin already does, use the Enhancement request form instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What's missing today? What is painful or impossible without this feature?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What should the plugin do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered (optional)
+      description: Other approaches you thought about, and why you prefer this one.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context (optional)
+      description: Links, screenshots or anything else that illustrates the idea.
+    validations:
+      required: false

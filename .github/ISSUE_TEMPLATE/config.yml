@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://github.com/jellyrock/jellyrock/discussions
+    about: Questions about installing or using the plugin go to JellyRock's GitHub Discussions.
+  - name: Report a bug in the JellyRock app
+    url: https://github.com/jellyrock/jellyrock/issues/new/choose
+    about: Use this for a problem in the Roku app itself. If you're not sure which one it is, report it there.
+  - name: Plugin feature guides
+    url: https://github.com/jellyrock/jellyfin-plugin-jellyrock/tree/main/docs/features
+    about: How cold-launch cast, remote control, playback cleanup and SyncPlay work, and what each one needs.
