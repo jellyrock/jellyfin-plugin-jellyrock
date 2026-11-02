@@ -1,3 +1,12 @@
+---
+title: SyncPlay (watch together)
+pitch: Watch together in a Jellyfin SyncPlay group, and the group stops waiting on your Roku once you close JellyRock.
+since: 0.4.0
+jellyrock: 3.3.0
+http: not-needed
+https: needed
+---
+
 # SyncPlay on HTTPS
 
 JellyRock joins Jellyfin SyncPlay groups (watch together) from **v3.3.0**. On an **https** server it

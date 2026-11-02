@@ -1,3 +1,12 @@
+---
+title: Fast cleanup after you press Home
+pitch: Press Home on your Roku mid-playback and your server ends the session within a minute instead of 5 to 10 minutes.
+since: 0.2.0
+jellyrock: 2.23.0
+http: not-needed
+https: needed
+---
+
 # Fast closed-app playback cleanup
 
 Press **Home** on the Roku mid-playback and the app is torn down instantly, with no chance to tell the

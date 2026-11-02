@@ -37,6 +37,26 @@ jobs:
       - name: Check the house voice
         run: bash .claude/skills/log/voice-check.sh
 
+  feature-catalog:
+    name: Feature catalog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # The script's tests read build.yaml back with PyYAML's SafeLoader, as jprm does.
+      # The range is jprm's own.
+      - name: Install PyYAML
+        run: python3 -m pip install --user 'PyYAML>=5.4,<7'
+
+      - name: Test the catalog generator
+        run: ./scripts/test-feature-catalog.sh
+
+      # docs/feature-catalog.json, the README table and build.yaml's description must match
+      # docs/features/*.md. Fix a failure by running scripts/feature-catalog.sh.
+      - name: Check the catalog is current
+        run: ./scripts/feature-catalog.sh --check
+
   build-test:
     name: Build + test
     runs-on: ubuntu-latest

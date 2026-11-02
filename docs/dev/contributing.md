@@ -60,6 +60,11 @@ back by the bot. Manual edits to it will be overwritten. To change what appears,
 subject (see above). Dated release sections are written by the release flow. See
 [releasing.md](releasing.md).
 
+## Feature pages
+
+A `feat` PR that adds a capability adds its page to `docs/features/` with `since: unreleased`, and
+commits what `scripts/feature-catalog.sh` writes. See [feature-pages.md](feature-pages.md).
+
 ## Building & releasing
 
 No local .NET SDK is required — builds run in the official SDK container. See
