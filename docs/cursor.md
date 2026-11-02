@@ -4,7 +4,7 @@ Live state that survives between Claude Code sessions: in-flight non-project wor
 
 Tracked projects are kept outside this repo, on the maintainer's machine (`docs/projects/` is gitignored); they have their own PLANs, statuses, and lifecycle skills (`/start-project` / `/resume-project` / `/end-session`). This cursor doc is for everything else: ad-hoc work between projects, followups captured via `/log followup` for next session, and the cadences that aren't crontabbed but still need human attention.
 
-**Last updated**: 2026-10-29
+**Last updated**: 2026-11-02
 
 ## In-flight non-project work
 
@@ -45,6 +45,22 @@ The changelog entry is the squash commit's subject (`scripts/changelog-gen.sh` r
 #### The reaper and the long-poll controller read the clock directly, so their tests can't pin exact times `[fid: reaper-clock-timeprovider]` `[captured 2026-10-29]`
 
 `PlaybackReaperService.SweepAsync()` and `QueueingSessionController` (`IsPollFresh()`, `MarkPolled()`, `MarkPollEnded()`) read `DateTime.UtcNow` directly. So the reaper's sweep tests assert position ranges (for example 598 to 600 s) instead of exact ticks, and a test can only make a poll window lapse by building a zero-length one. Inject `TimeProvider` (in the BCL since .NET 8; the plugin targets `net9.0`) into both, with `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing` in the tests. Found in the PR #34 review on 2026-10-29; left out of that PR because it changes the long-poll controller, which the fix does not touch. Closes when neither class reads `DateTime.UtcNow` and the sweep tests assert exact ticks.
+
+### Feature catalog
+
+#### jellyrock.app has not been told the feature catalog's shipped shape `[fid: companion-page-catalog-shape-handoff]` `[captured 2026-11-02]`
+
+For jellyrock/jellyrock.app, not this repo. On 2026-11-02, `/log message` refused it because jellyrock/jellyrock.app is not a registered repo on this machine. To close this, send that repo the text below (`/log message jellyrock/jellyrock.app --from companion-page-catalog-shape-handoff`, once it is registered), or post it on jellyrock/jellyrock.app#165.
+
+The plugin feature catalog that `/companion-plugin/` (jellyrock/jellyrock.app#165) builds from is live on `main` as `docs/feature-catalog.json`, merged in jellyrock/jellyfin-plugin-jellyrock@8323acd06c7d3ac42e9e58e485ad8eb8452cfefc. Raw URL: https://raw.githubusercontent.com/jellyrock/jellyfin-plugin-jellyrock/main/docs/feature-catalog.json
+
+Shape (`schema: 1`; an added field does not bump it, a breaking change does; see ADR 0002):
+
+- `plugin.server`: the oldest Jellyfin server, three parts (`"10.11.0"`), read from `targetAbi`.
+- `features[]`, sorted by `title`, each with `slug`, `title`, `pitch` (at most 120 characters), `since` (`x.y.z` or `"unreleased"`), `sinceDate` (`YYYY-MM-DD` or `null`), `jellyrock` (oldest app version), `http` and `https` (`"needed"` or `"not-needed"`), and `url` (the page on GitHub).
+- No `manifest` field: link the install steps on docs.jellyrock.app.
+
+A catalog change on this repo's `main` sends `content-update` to jellyrock.app. The first dispatch started its **Deploy Homepage** on 2026-11-02. Over there: build the page against this shape, and decide how to show an `"unreleased"` feature (this README marks it "(next release)").
 
 ## Batch jobs
 
