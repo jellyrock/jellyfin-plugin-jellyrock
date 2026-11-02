@@ -82,8 +82,8 @@ release is a few days old; majors always wait for review. It leaves alone:
 The SDK version lives in `global.json`, which CI's `setup-dotnet` reads. Locally, any newer 9.0 SDK
 also works (`rollForward: latestFeature`). Renovate's PRs keep that pin current.
 
-**Required checks on `main`:** `Version parity`, `Build + test`, `Server compatibility` and
-`pr-title`. Every PR runs them, docs-only ones included.
+**Required checks on `main`:** `Version parity`, `Build + test`, `Server compatibility`,
+`House voice`, `Feature catalog` and `pr-title`. Every PR runs them, docs-only ones included.
 
 ## More
 
