@@ -1,3 +1,12 @@
+---
+title: Cast while JellyRock is closed
+pitch: Cast from a Jellyfin app to your Roku while JellyRock is closed, when your server is on the same network as the Roku.
+since: 0.3.0
+jellyrock: 2.24.0
+http: needed
+https: needed
+---
+
 # Cold-launch cast
 
 Cast to a Roku **even when JellyRock is closed**. The plugin advertises the closed device as a "Play On"

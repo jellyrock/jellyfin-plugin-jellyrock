@@ -85,7 +85,8 @@ jobs:
           fi
           ./scripts/set-version.sh "$VERSION"
           ./scripts/check-version-parity.sh
-          git add Directory.Build.props Jellyfin.Plugin.JellyRock/build.yaml CHANGELOG.md
+          git add Directory.Build.props Jellyfin.Plugin.JellyRock/build.yaml CHANGELOG.md \
+            docs/features docs/feature-catalog.json README.md
           git commit -m "chore: prepare release v$VERSION"
           git push origin "HEAD:$BRANCH"
 
@@ -102,7 +103,7 @@ jobs:
           ## 🚀 Prepare release v$VERSION
 
           Bumps \`Directory.Build.props\` + \`build.yaml\` to \`$VERSION.0\` and rolls the
-          CHANGELOG. **Merging to \`main\` triggers the release** — tag \`v$VERSION\`, jprm
+          CHANGELOG, and stamps the feature pages that were still unreleased. **Merging to \`main\` triggers the release** — tag \`v$VERSION\`, jprm
           package, GitHub release, and manifest refresh (see \`.github/workflows/release.yml\`).
 
           ### Release notes (from CHANGELOG.md)

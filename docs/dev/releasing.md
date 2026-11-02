@@ -6,7 +6,9 @@ The maintainer runbook for cutting a release. Two steps, the same flow as the Je
 ## 1. Push a `release-x.y.z` branch
 
 The **Release Preparation** workflow bumps `Directory.Build.props` + `build.yaml` in lockstep, rolls
-`CHANGELOG.md`'s `[Unreleased]` into a dated section on that branch, and opens a PR to `main`.
+`CHANGELOG.md`'s `[Unreleased]` into a dated section on that branch, and opens a PR to `main`. It also
+stamps `since: x.y.z` on every feature page still marked `unreleased` and regenerates the feature
+catalog (see [feature-pages.md](feature-pages.md)), so the stamps show in that PR.
 
 ```bash
 git switch main && git pull

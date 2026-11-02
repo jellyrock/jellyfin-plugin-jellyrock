@@ -1,0 +1,53 @@
+{
+  "_comment": "Generated from the frontmatter of docs/features/*.md by scripts/feature-catalog.sh. Edit the pages, not this file.",
+  "schema": 1,
+  "plugin": {
+    "server": "10.11.0"
+  },
+  "features": [
+    {
+      "slug": "remote-control",
+      "title": "Cast from another Jellyfin app",
+      "pitch": "Cast from a Jellyfin app on your phone or browser to an open JellyRock, then pause, seek and skip from there.",
+      "since": "0.1.0",
+      "sinceDate": "2026-07-14",
+      "jellyrock": "2.23.0",
+      "http": "not-needed",
+      "https": "needed",
+      "url": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/blob/main/docs/features/remote-control.md"
+    },
+    {
+      "slug": "cold-launch-cast",
+      "title": "Cast while JellyRock is closed",
+      "pitch": "Cast from a Jellyfin app to your Roku while JellyRock is closed, when your server is on the same network as the Roku.",
+      "since": "0.3.0",
+      "sinceDate": "2026-07-24",
+      "jellyrock": "2.24.0",
+      "http": "needed",
+      "https": "needed",
+      "url": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/blob/main/docs/features/cold-launch-cast.md"
+    },
+    {
+      "slug": "playback-cleanup",
+      "title": "Fast cleanup after you press Home",
+      "pitch": "Press Home on your Roku mid-playback and your server ends the session within a minute instead of 5 to 10 minutes.",
+      "since": "0.2.0",
+      "sinceDate": "2026-07-16",
+      "jellyrock": "2.23.0",
+      "http": "not-needed",
+      "https": "needed",
+      "url": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/blob/main/docs/features/playback-cleanup.md"
+    },
+    {
+      "slug": "syncplay",
+      "title": "SyncPlay (watch together)",
+      "pitch": "Watch together in a Jellyfin SyncPlay group, and the group stops waiting on your Roku once you close JellyRock.",
+      "since": "0.4.0",
+      "sinceDate": "2026-10-29",
+      "jellyrock": "3.3.0",
+      "http": "not-needed",
+      "https": "needed",
+      "url": "https://github.com/jellyrock/jellyfin-plugin-jellyrock/blob/main/docs/features/syncplay.md"
+    }
+  ]
+}

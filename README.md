@@ -21,29 +21,18 @@ Updates then surface in the Dashboard automatically. Each release's zip + `md5` 
 
 ## What it does
 
-Four independent, server-assisted capabilities for JellyRock:
+The plugin adds server-side help for JellyRock. Each feature has a page with the details; the table says which servers need the plugin.
 
-- **[Cold-launch cast](docs/features/cold-launch-cast.md)**: cast to a Roku even when JellyRock is
-  *closed*. The plugin advertises the closed device as a "Play On" target and wakes it into the item over
-  ECP. Works on http and https.
-- **["Play On" remote control](docs/features/remote-control.md)**: cast to and control an *open*
-  JellyRock. This already works out of the box on **http** servers (JellyRock uses Jellyfin's native
-  session socket); the plugin **extends it to https** servers, where Roku can't open a secure `wss://`
-  socket, by bridging commands over a TLS long-poll.
-- **[Fast playback cleanup](docs/features/playback-cleanup.md)**: reap a closed app's playback session
-  fast, playing or paused. Already near-instant on **http** with no plugin; the plugin **extends the
-  same cleanup to https**, reaping the lingering session within a minute (instead of Jellyfin's 5 to 10
-  minutes) and, on servers before 12.0, an accurate resume point (12.0 records that itself).
-- **[SyncPlay on HTTPS](docs/features/syncplay.md)**: watch together in a Jellyfin SyncPlay group on an
-  **https** server, and leave the group when JellyRock closes. Works with no plugin on **http**.
+<!-- BEGIN generated features (scripts/feature-catalog.sh) -->
 
-## Do I need it?
+| Feature | What you get | HTTP server | HTTPS server | JellyRock |
+| --- | --- | --- | --- | --- |
+| [Cast from another Jellyfin app](docs/features/remote-control.md) | Cast from a Jellyfin app on your phone or browser to an open JellyRock, then pause, seek and skip from there. | Works without it | Plugin needed | 2.23.0 or newer |
+| [Cast while JellyRock is closed](docs/features/cold-launch-cast.md) | Cast from a Jellyfin app to your Roku while JellyRock is closed, when your server is on the same network as the Roku. | Plugin needed | Plugin needed | 2.24.0 or newer |
+| [Fast cleanup after you press Home](docs/features/playback-cleanup.md) | Press Home on your Roku mid-playback and your server ends the session within a minute instead of 5 to 10 minutes. | Works without it | Plugin needed | 2.23.0 or newer |
+| [SyncPlay (watch together)](docs/features/syncplay.md) | Watch together in a Jellyfin SyncPlay group, and the group stops waiting on your Roku once you close JellyRock. | Works without it | Plugin needed | 3.3.0 or newer |
 
-- **Cold-launch cast** needs the plugin on any server (http or https) that shares your Roku's LAN.
-- **Remote control**, **playback cleanup** and **SyncPlay** already work on **http** with no plugin
-  (JellyRock uses Jellyfin's native session socket). Install the plugin for these only if your server
-  is **https**, where Roku can't open that socket and the plugin fills the gap. On https, JellyRock
-  offers SyncPlay only when the plugin is installed.
+<!-- END generated features -->
 
 ## Settings
 
@@ -62,8 +51,6 @@ The remote-control and playback-cleanup features have no settings.
   10.11.0 API floor (`Jellyfin.Controller` / `Jellyfin.Model` and `targetAbi` are pinned there). Servers
   on 10.9/10.10 stay on the last `net8` / 10.9-ABI release (0.2.x) and are simply not offered newer
   versions. See [ADR 0023](https://github.com/jellyrock/jellyrock/blob/main/docs/adr/0023-cold-launch-cast-producer.md).
-- **JellyRock on your Roku:** v2.24.0+ for cold-launch cast; v2.23.0+ for remote control and
-  playback cleanup. Older clients fall back to Jellyfin's default behavior.
 
 ## Development
 

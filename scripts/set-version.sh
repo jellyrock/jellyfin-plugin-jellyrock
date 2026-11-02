@@ -13,6 +13,8 @@
 #   Directory.Build.props              <Version>/<AssemblyVersion>/<FileVersion> = x.y.z.0
 #   Jellyfin.Plugin.JellyRock/build.yaml   version: "x.y.z.0"
 #   CHANGELOG.md                       [Unreleased] -> [x.y.z](compare-url) - DATE
+#   docs/features/*.md                 since: unreleased -> since: x.y.z
+#   docs/feature-catalog.json, README.md, build.yaml description   regenerated (feature-catalog.sh)
 set -euo pipefail
 source "${BASH_SOURCE%/*}/lib-version.sh"
 
@@ -93,7 +95,13 @@ CL_VER="$ver" CL_DATE="$date" CL_URL="$heading_url" CL_SECTION="$section" awk '
 ' "$changelog" > "$tmp"
 mv "$tmp" "$changelog"
 
+# --- feature pages + catalog -------------------------------------------------
+# Stamp the pages still marked unreleased with this version (the dated heading above is
+# what sinceDate reads), then regenerate the catalog, README block and description.
+"${BASH_SOURCE%/*}/feature-catalog.sh" --release "$ver"
+
 echo "✅ Bumped to ${ver} (assembly ${four}, changelog dated ${date})"
 echo "   - $PROPS_FILE_REL"
 echo "   - $BUILD_YAML_REL"
 echo "   - CHANGELOG.md"
+echo "   - docs/features, docs/feature-catalog.json, README.md (feature catalog)"

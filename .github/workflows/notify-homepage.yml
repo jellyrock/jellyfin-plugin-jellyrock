@@ -1,0 +1,45 @@
+name: Notify homepage
+
+# Tells jellyrock.app that docs/feature-catalog.json changed, so its Companion page
+# rebuilds. The site's deploy.yml rebuilds on a `content-update` repository_dispatch.
+# The catalog is checked first: a stale one fails this job and sends nothing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/feature-catalog.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Check the catalog is current
+        run: ./scripts/feature-catalog.sh --check
+
+      # The default token cannot dispatch to another repository.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: jellyrock
+          repositories: jellyrock.app
+
+      - name: Dispatch content-update to jellyrock.app
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api repos/jellyrock/jellyrock.app/dispatches \
+            -f event_type=content-update \
+            -f 'client_payload[reason]=plugin feature catalog updated' \
+            -f "client_payload[ref]=$GITHUB_REF" \
+            -f "client_payload[sha]=$GITHUB_SHA"

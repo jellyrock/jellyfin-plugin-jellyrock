@@ -1,3 +1,12 @@
+---
+title: Cast from another Jellyfin app
+pitch: Cast from a Jellyfin app on your phone or browser to an open JellyRock, then pause, seek and skip from there.
+since: 0.1.0
+jellyrock: 2.23.0
+http: not-needed
+https: needed
+---
+
 # "Play On" remote control
 
 Cast to and control an **open** JellyRock: play / pause / seek from the Jellyfin web or mobile app.
