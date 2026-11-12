@@ -81,7 +81,7 @@ jobs:
           if [[ -n "$number" ]]; then
             gh issue comment "$number" --body-file "$body_file"
           else
-            gh issue create --title "$ISSUE_TITLE" --body-file "$body_file"
+            gh issue create --title "$ISSUE_TITLE" --label server-abi --body-file "$body_file"
           fi
 
       - name: Close the failure issue

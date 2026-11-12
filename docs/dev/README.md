@@ -58,9 +58,9 @@ container.
 **Where it runs.** CI runs it on every push and pull request, plus a control: the plugin must *not*
 bind to 10.10.7, so a check that stops seeing breaks fails the build. `server-abi-watch.yml` runs it
 every Monday, so a new Jellyfin release is checked without a push; a failure opens an issue titled
-"Server compatibility check failed", and the next pass closes it. GitHub disables a public
-repository's scheduled workflows after 60 days with no repository activity; re-enable it from the
-Actions tab.
+"Server compatibility check failed" with the `server-abi` label, and the next pass closes it.
+`/catchup` finds the open issue by that label. GitHub disables a public repository's scheduled
+workflows after 60 days with no repository activity; re-enable it from the Actions tab.
 
 **When it fails.** A `problems` line names what the server no longer has. The fix is a plugin change
 that avoids it, or a decision to raise the floor (`targetAbi` in `build.yaml` and the `Jellyfin.*`
