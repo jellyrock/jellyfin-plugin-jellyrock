@@ -35,7 +35,7 @@ jobs:
       # Each tracked Markdown file may only lose hits against .voice-baseline.tsv
       # (.claude/rules/writing-style.md). Needs only bash and git.
       - name: Check the house voice
-        run: bash .claude/skills/log/voice-check.sh
+        run: bash scripts/voice-check/voice-check.sh
 
   feature-catalog:
     name: Feature catalog
